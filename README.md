@@ -24,4 +24,4 @@
 
 https://jasonsong100zz-ctrl.github.io/shopee-ai-diagnosis-center/
 
-每次推送到 `main` 会自动重新构建。
+每次推送到 `main` 会自动重新构建。Pages source 已配置为 GitHub Actions。
