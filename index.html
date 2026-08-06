@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17231f" />
+    <meta name="description" content="Shopee Indonesia Glad2Glow 运营诊断、Listing 定位、任务与 SOP 总控工作台。" />
+    <meta property="og:title" content="Shopee AI 诊断中心｜总控看板" />
+    <meta property="og:description" content="把 Listing、广告、流量、客服与 SOP 汇总成可执行任务。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="assets/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <title>Shopee AI 诊断中心｜总控看板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body class="auth-pending">
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <a class="brand" href="#overview" aria-label="Shopee AI 诊断中心首页">
+          <span class="brand-mark">S</span>
+          <span><strong>Shopee AI</strong><small>诊断中心 · Indonesia</small></span>
+        </a>
+        <nav class="nav-list">
+          <a class="nav-item active" href="#overview"><span>01</span>经营总览</a>
+          <button class="nav-item nav-toggle" id="workflowNavToggle" type="button" aria-expanded="false" aria-controls="workflowSubmenu"><span>02</span><strong>工作流主控</strong><b>⌄</b></button>
+          <div class="nav-submenu" id="workflowSubmenu" aria-label="五个业务板块" hidden>
+            <div class="nav-subgroup"><a href="#chat-01"><span>板块 1</span>Listing 本地化</a><a class="nav-deep-link" href="#listings">链接执行中心</a></div>
+            <div class="nav-subgroup"><a href="#chat-02"><span>板块 2</span>广告出价调优</a></div>
+            <div class="nav-subgroup"><a href="#chat-03"><span>板块 3</span>店铺漏斗归因</a></div>
+            <div class="nav-subgroup"><a href="#chat-04"><span>板块 4</span>客服与竞品</a></div>
+            <div class="nav-subgroup"><a href="#chat-05"><span>板块 5</span>主控与 SOP</a><a class="nav-deep-link" href="#tasks">任务与复盘</a><a class="nav-deep-link" href="#sop">SOP 与模板</a></div>
+          </div>
+          <a class="nav-item" href="#subsidy"><span>03</span>补贴分配</a>
+          <a class="nav-item" href="#data-governance"><span>07</span>数据源 & 定义</a>
+        </nav>
+        <div class="sidebar-note">
+          <span class="pulse"></span>
+          <div><strong>运营主控在线</strong><small>数据版本 · 2026-08-05</small></div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <button class="menu-button" type="button" aria-label="打开导航" aria-expanded="false">☰</button>
+          <div class="breadcrumb">GLAD2GLOW <span>/</span> Shopee Indonesia</div>
+          <div class="top-actions">
+            <button class="ghost-button" id="exportButton" type="button">导出周报</button>
+            <a class="primary-button" href="#tasks">查看今日任务 <span>→</span></a>
+          </div>
+        </header>
+
+        <section class="section hero-section" id="overview" data-route="overview">
+          <div class="hero-copy">
+            <span class="eyebrow">DAILY BUSINESS OVERVIEW</span>
+            <h1>经营总览</h1>
+            <p>按店铺 → 类目 → 链接逐层查看当前经营结果、异常问题与调整方向。</p>
+          </div>
+          <div class="hero-side">
+            <div class="hero-date"><span>当前数据周期</span><strong>2026 年 7 月</strong></div>
+            <div class="hero-signal"><i></i><span>核心判断</span><p>成熟链接中 51.8% 已明显下滑或连续衰退，资源应先集中到 T1/T2 核心链接。</p></div>
+          </div>
+        </section>
+
+        <section class="section metrics-section" data-route="overview" aria-labelledby="metrics-title">
+          <div class="section-heading compact">
+            <div><span class="kicker">CURRENT PERIOD · JUL 2026</span><h2 id="metrics-title">当前周期核心指标</h2></div>
+            <div class="legend"><span><i class="dot green"></i>健康</span><span><i class="dot amber"></i>待优化</span><span><i class="dot red"></i>高风险</span></div>
+          </div>
+          <div class="metric-grid" id="metricGrid"></div>
+          <div class="overview-levels">
+            <section class="overview-level"><div class="overview-level-head"><span>STORE VIEW</span><h3>店铺指标</h3></div><div id="storeOverview"></div></section>
+            <section class="overview-level"><div class="overview-level-head"><span>CATEGORY VIEW</span><h3>类目指标</h3></div><div id="categoryOverview"></div></section>
+            <section class="overview-level"><div class="overview-level-head"><span>LINK VIEW</span><h3>链接指标</h3></div><div id="linkOverview"></div></section>
+          </div>
+          <div class="overview-actions-head"><div><span>AI BUSINESS REVIEW</span><h3>目前问题点与调整点</h3></div><small>由店铺、类目和链接数据自动归因</small></div>
+          <div class="overview-actions-grid" id="overviewActionsGrid"></div>
+        </section>
+
+        <section class="section" id="workflows" data-route="workflows" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">DATA CHECK & ROUTING</span><h2>工作流主控：补数据、查缺口、进模块</h2></div>
+            <p>主控只负责入口与检查；具体诊断进入板块 1–5 的细分模块。</p>
+          </div>
+          <div class="workflow-grid" id="workflowGrid"></div>
+        </section>
+
+        <section class="section subsidy-section" id="subsidy" data-route="subsidy" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">CAMPAIGN SUBSIDY · LINK / MODEL</span><h2>大促补贴分配</h2></div>
+            <p>优先识别“有流量与购买意向但转化偏弱”及“近期趋势向好”的链接，再下钻到有货 Model。</p>
+          </div>
+          <div class="subsidy-control">
+            <label><span>本次平台补贴预算（¥）</span><input id="subsidyBudget" type="number" min="1000" step="1000" value="100000" /></label>
+            <div id="subsidySummary" class="subsidy-summary"></div>
+          </div>
+          <div class="subsidy-rule-note"><strong>AI 分配原则</strong><span>价格力待验证：高流量／强加购但 CR 偏低</span><span>增长加速：环比增长或快速爆发且转化健康</span><span>安全边界：缺活动价、毛利或补贴上限时仅给测试区间，不直接给最终价</span></div>
+          <div class="table-wrap subsidy-table-wrap">
+            <table class="subsidy-table">
+              <thead><tr><th>优先级</th><th>链接 / 产品</th><th>AI 机会判断</th><th>建议投放 Model</th><th>建议预算</th><th>价格动作</th><th>验证指标</th></tr></thead>
+              <tbody id="subsidyTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section" id="listings" data-route="listings" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">EXECUTION CENTER · 板块 1</span><h2>全量链接诊断与 Model 匹配</h2></div>
+            <p id="currencyNote">链接销售数据不重复累计 Model；金额统一人民币，固定汇率 ¥1 = Rp2,650。</p>
+          </div>
+          <div class="module1-summary" id="module1Summary"></div>
+          <div class="toolbar">
+            <label class="search-field"><span>⌕</span><input id="listingSearch" type="search" placeholder="搜索产品、Product ID、店铺或链接…" /></label>
+            <div class="filter-group listing-selectors" id="listingFilters" aria-label="Listing 组合筛选">
+              <select id="storeFilter" aria-label="按店铺筛选"><option value="全部">全部店铺</option></select>
+              <select id="poolFilter" aria-label="按池筛选"><option value="全部">全部池</option></select>
+              <select id="tierFilter" aria-label="按T级筛选"><option value="全部">全部T级</option></select>
+              <select id="matrixFilter" aria-label="按矩阵筛选"><option value="全部">全部矩阵</option></select>
+              <select id="matchFilter" aria-label="按匹配状态筛选"><option value="全部">全部匹配状态</option></select>
+            </div>
+          </div>
+          <div class="active-queue-bar" id="activeQueueBar" hidden></div>
+          <div class="table-wrap">
+            <table class="listing-table">
+              <thead><tr>
+                <th><button class="sort-button" type="button" data-sort="category">类目归属 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="product">链接 / 产品 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="business">业务定位 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="tier">池 / T级 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="shop">店铺 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="traffic">流量规模 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="conversion">转化效率 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="sales">销量 / GMV（¥） <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="models">Model 情况 <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="uv">UV价值（¥） <span>↕</span></button></th>
+                <th><button class="sort-button" type="button" data-sort="diagnosis">AI诊断 <span>↕</span></button></th>
+              </tr></thead>
+              <tbody id="listingTable"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="listingEmpty" hidden>没有匹配的 Listing，请调整搜索或筛选条件。</div>
+          <div class="pagination" id="listingPagination"></div>
+        </section>
+
+        <section class="section diagnosis-section" id="diagnosis" data-route="listings" hidden>
+          <div class="section-heading light">
+            <div><span class="kicker">AI DIAGNOSIS · LIVE QUEUES</span><h2>链接诊断队列与动作闭环</h2></div>
+            <p id="diagnosisSourceNote">每张卡由695条链接实时计算；点击即可回到对应链接并查看AI方案。</p>
+          </div>
+          <div class="diagnosis-grid" id="diagnosisGrid"></div>
+        </section>
+
+        <section class="section" id="tasks" data-route="tasks" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">LINK-LEVEL ACTION BOARD</span><h2>链接层级任务看板</h2></div>
+            <div class="progress-copy"><strong id="taskProgress">0%</strong><span>本周完成度</span></div>
+          </div>
+          <div class="task-columns" id="taskColumns"></div>
+          <p class="local-note">任务勾选状态会保存在当前浏览器，不会改动示例数据文件。</p>
+        </section>
+
+        <section class="section" id="sop" data-route="sop" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">OPERATING SYSTEM</span><h2>SOP 与日报 / 周报模板</h2></div>
+            <p>固定输入、固定判断、固定输出，让团队协作可复用。</p>
+          </div>
+          <div class="sop-context-bar">
+            <label><span>分析品类</span><select id="sopCategory"><option value="全部">全店</option></select></label>
+            <div id="sopDataHealth" class="sop-data-health"></div>
+          </div>
+          <div class="sop-live-conclusion" id="sopLiveConclusion"></div>
+          <div class="sop-layout">
+            <div class="sop-steps" id="sopSteps"></div>
+            <div class="template-panel">
+              <div class="template-tabs" role="tablist">
+                <button class="template-tab active" data-template="daily" role="tab" aria-selected="true">日报模板</button>
+                <button class="template-tab" data-template="weekly" role="tab" aria-selected="false">周报模板</button>
+                <button class="template-tab" data-template="listing" role="tab" aria-selected="false">Listing 诊断</button>
+              </div>
+              <div class="template-content" id="templateContent"></div>
+              <button class="copy-button" id="copyTemplate" type="button">复制模板</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="section data-governance-section" id="data-governance" data-route="data-governance" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">DATA GOVERNANCE · AUTO RECALC</span><h2>数据源 & 指标定义</h2></div>
+            <p>查看每个结论引用的数据源；修改参数或链接源数据后，全看板自动重算。</p>
+          </div>
+          <div class="table-source-banner"><div><span>LIVE CLOUD SOURCE</span><strong>Google Sheets 主表 + GitHub CSV 快照</strong><p>运营直接在云端表格修改，GitHub Actions 定时同步；指标、诊断与任务按固有规则自动重算。</p></div><a href="https://docs.google.com/spreadsheets/d/1wwJFOce_-2FuO11gTHeJHEJ2gKY4SZi-MBVegdwjGH4/edit" target="_blank" rel="noopener noreferrer">打开云端数据主表 ↗</a></div>
+          <div class="governance-status" id="governanceStatus"></div>
+          <div class="source-grid" id="sourceGrid"></div>
+
+          <div class="governance-grid">
+            <section class="definition-panel">
+              <div class="panel-heading"><div><span>CALCULATION RULES</span><h3>可编辑定义参数</h3></div><button type="button" class="text-button" id="resetDefinitions">恢复默认</button></div>
+              <form class="definition-form" id="definitionForm"></form>
+              <button type="button" class="primary-button full-button" id="applyDefinitions">应用参数并重算全看板</button>
+            </section>
+            <section class="source-editor-panel">
+              <div class="panel-heading"><div><span>LINK SOURCE EDITOR</span><h3>修改单条链接源数据</h3></div><small>修改保存在当前浏览器</small></div>
+              <div class="source-search"><input id="sourceProductId" type="search" placeholder="输入 Product ID，例如 26278500927" /><button type="button" id="loadSourceLink">读取链接</button></div>
+              <form class="source-link-form" id="sourceLinkForm"><p class="editor-placeholder">输入 Product ID 后，可编辑产品、类目、T级、流量、订单、销量与GMV。</p></form>
+              <div class="source-editor-actions"><button type="button" class="primary-button" id="saveSourceLink" disabled>保存并重算</button><button type="button" class="ghost-button" id="clearSourcePatches">清除本机修改</button></div>
+            </section>
+          </div>
+
+          <section class="metric-definition-panel">
+            <div class="panel-heading"><div><span>METRIC DICTIONARY</span><h3>指标口径与引用字段</h3></div><small>定义版本 <b id="definitionVersion">—</b></small></div>
+            <div class="definition-table-wrap"><table class="definition-table"><thead><tr><th>指标</th><th>计算逻辑</th><th>引用字段</th><th>使用位置</th></tr></thead><tbody id="metricDefinitionTable"></tbody></table></div>
+          </section>
+        </section>
+
+        <footer>
+          <span>Shopee AI 诊断中心 · Glad2Glow Indonesia</span>
+          <span>诊断 → 动作 → 验证 → 复盘</span>
+        </footer>
+      </main>
+    </div>
+    <dialog class="model-dialog" id="modelDialog">
+      <div class="dialog-head"><div><span>MODEL SNAPSHOT</span><h3 id="modelDialogTitle">Model 数据</h3></div><button type="button" id="closeModelDialog" aria-label="关闭">×</button></div>
+      <div id="modelDialogSummary" class="dialog-summary"></div>
+      <div id="modelDialogBody" class="dialog-models"></div>
+    </dialog>
+    <dialog class="model-dialog diagnosis-dialog" id="diagnosisDialog">
+      <div class="dialog-head"><div><span>AI LISTING DIAGNOSIS</span><h3 id="diagnosisDialogTitle">链接诊断</h3></div><button type="button" id="closeDiagnosisDialog" aria-label="关闭">×</button></div>
+      <div id="diagnosisDialogTags" class="dialog-summary"></div>
+      <div id="diagnosisDialogBody" class="diagnosis-detail"></div>
+    </dialog>
+    <input id="workflowFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv" hidden />
+    <input id="module1FileInput" type="file" accept=".csv,text/csv" hidden />
+    <input id="definitionsFileInput" type="file" accept=".csv,text/csv" hidden />
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="assets/auth-bootstrap.js"></script>
+  </body>
+</html>
+

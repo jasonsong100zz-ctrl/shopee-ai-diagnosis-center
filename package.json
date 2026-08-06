@@ -1,0 +1,12 @@
+{
+  "name": "shopee-ai-diagnosis-center",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-secure-site.mjs",
+    "validate": "node scripts/validate.mjs"
+  }
+}
+
+
