@@ -682,10 +682,10 @@ function exportParametersCsv() {
 
 function refreshDashboard() {
   prepareModule1Data();
-  const summary = state.module1.summary;
-  const declineRate = summary.mature ? summary.declining / summary.mature : 0;
   $(".hero-date strong").textContent = `2026 年 7 月 · ${state.module1.summary.shops} 个店铺`;
   $(".hero-signal p").textContent = `成熟链接中 ${formatPercent(declineRate)} 处于单月下滑或连续衰退；当前优先保护 ${summary.t1t2} 条 T1/T2 核心链接。`;
+  $("#currencyNote").textContent = `链接销售数据不重复累计 Model；金额统一人民币，当前汇率 ¥1 = Rp${Number(state.definitions.parameters.idrPerCny).toLocaleString("zh-CN")}。`;
+  $("#diagnosisSourceNote").textContent = `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看 AI 方案。`;
   $("#currencyNote").textContent = `链接销售数据不重复累计 Model；金额统一人民币，当前汇率 ¥1 = Rp${Number(state.definitions.parameters.idrPerCny).toLocaleString("zh-CN")}。`;
   $("#diagnosisSourceNote").textContent = `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看AI方案。`;
   renderMetrics(); renderOverviewLevels(); renderWorkflows(); renderSubsidy(); renderModule1Summary(); renderListingFilters();
