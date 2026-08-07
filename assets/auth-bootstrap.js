@@ -179,7 +179,7 @@ async function startApp(session, demo = false) {
   document.body.classList.remove("auth-pending");
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "./assets/dashboard-runtime.js?v=20260812";
+    script.src = "./assets/dashboard-runtime.js?v=20260813";
     script.onload = resolve;
     script.onerror = () => reject(new Error("看板核心脚本加载失败，请刷新后重试。"));
     document.head.appendChild(script);
