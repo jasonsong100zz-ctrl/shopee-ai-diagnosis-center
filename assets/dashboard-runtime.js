@@ -1,86 +1,41 @@
-(async function () {
+(function () {
   const $ = (s) => document.querySelector(s);
+  const $$ = (s) => [...document.querySelectorAll(s)];
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  const num = (v) => Number(v) || 0;
-  const fmt = (v) => num(v).toLocaleString("zh-CN");
-  const pct = (v) => (num(v) * 100).toFixed(2) + "%";
+  const n = (v) => Number(v) || 0;
+  const fmt = (v) => n(v).toLocaleString("zh-CN");
+  const pct = (v) => (n(v) * 100).toFixed(2) + "%";
+  const cny = (v) => "¥" + (n(v) / 2650).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+  const state = { data:null, module1:null, definitions:null, links:[], filtered:[], page:1, pageSize:50, sortKey:"sales", sortDir:"desc", query:"", queue:null };
+
   const style = document.createElement("style");
   style.textContent = `
     #metricGrid{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:0;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden}
-    #metricGrid article{min-height:120px;padding:22px 18px;border-right:1px solid #e5e7eb;background:#fff;display:flex;flex-direction:column;gap:10px}
-    #metricGrid article:last-child{border-right:0}
-    #metricGrid article span{font-size:14px;color:#6b7280;font-weight:600}
-    #metricGrid article strong{font-size:24px;line-height:1.1;color:#111827;white-space:nowrap}
-    #metricGrid article small{font-size:12px;color:#9ca3af}
-    .overview-row{display:grid;grid-template-columns:minmax(180px,1.5fr) 110px 150px 90px 120px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #eef0f2;font-size:14px;white-space:nowrap}
-    .overview-row strong{font-weight:700;color:#1f2937}.overview-row span{color:#6b7280}.overview-row b{color:#176b4d}.overview-row em{font-style:normal;font-weight:700;color:#111827}
-    #storeOverview,#categoryOverview,#linkOverview{padding:12px 26px 18px}
-    #module1Summary{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:12px}
-    #module1Summary article{padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
-    #module1Summary article span,#module1Summary article small{display:block;color:#6b7280;font-size:12px}
-    #module1Summary article strong{display:block;font-size:22px;margin:6px 0}
-    #listingTable td{padding:10px 8px;vertical-align:top}#listingTable small{display:block;color:#9ca3af;margin-top:4px}
-    @media(max-width:1100px){#metricGrid{grid-template-columns:repeat(4,1fr)}#module1Summary{grid-template-columns:repeat(3,1fr)}.overview-row{grid-template-columns:1.4fr 90px 120px 70px 100px}}
-    @media(max-width:700px){#metricGrid{grid-template-columns:repeat(2,1fr)}#metricGrid article{border-bottom:1px solid #e5e7eb}.overview-row{grid-template-columns:1fr 90px 90px}.overview-row b,.overview-row em{display:none}}
+    #metricGrid article{min-height:120px;padding:20px 16px;border-right:1px solid #e5e7eb;background:#fff;display:flex;flex-direction:column;gap:9px}
+    #metricGrid article:last-child{border-right:0}#metricGrid article span{font-size:13px;color:#6b7280;font-weight:600}
+    #metricGrid article strong{font-size:23px;color:#111827;white-space:nowrap}#metricGrid article small{font-size:12px;color:#9ca3af}
+    .overview-table{width:100%;border-collapse:collapse}.overview-table th,.overview-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #eef0f2;font-size:13px}.overview-table th{font-size:12px;color:#6b7280;background:#fafafa}.overview-table td strong{color:#1f2937}.overview-table td.money{font-weight:700}.overview-table td.good{color:#176b4d;font-weight:700}
+    #module1Summary{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:12px}#module1Summary article{padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}#module1Summary article span,#module1Summary article small{display:block;color:#6b7280;font-size:12px}#module1Summary article strong{display:block;font-size:22px;margin:6px 0}
+    .runtime-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}.runtime-toolbar input,.runtime-toolbar select{padding:9px 12px;border:1px solid #dfe3e8;border-radius:10px;background:#fff}.runtime-toolbar button,.runtime-action{padding:8px 12px;border:0;border-radius:9px;background:#f3f5f4;cursor:pointer}.runtime-action.primary{background:#f15b2a;color:#fff}.runtime-muted{color:#6b7280;font-size:12px}.runtime-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.runtime-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;background:#fff}.runtime-card h3{margin:6px 0 8px}.runtime-card p{margin:4px 0;color:#6b7280;font-size:13px}.runtime-card .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#e9f5ef;color:#176b4d;font-size:12px}
+    .runtime-table-wrap{overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:14px}.runtime-table{width:100%;min-width:1050px;border-collapse:collapse}.runtime-table th,.runtime-table td{padding:11px 10px;border-bottom:1px solid #eef0f2;text-align:left;font-size:13px;white-space:nowrap}.runtime-table th{position:sticky;top:0;background:#f8f9fa;color:#5f6772;cursor:pointer}.runtime-table th button{border:0;background:transparent;font:inherit;color:inherit;cursor:pointer}.runtime-table td small{display:block;color:#9ca3af;margin-top:4px}.runtime-table tr:hover{background:#fafcfb}.runtime-table a{color:#176b4d;text-decoration:none;font-weight:700}
+    .runtime-pagination{display:flex;justify-content:space-between;align-items:center;padding:12px 0}.runtime-pagination button{padding:7px 11px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;cursor:pointer}.runtime-pagination button:disabled{opacity:.4;cursor:not-allowed}.runtime-diagnosis{border:1px solid #e5e7eb;border-radius:14px;background:#fff;padding:18px;margin-top:14px}.runtime-diagnosis h3{margin:0 0 8px}.runtime-diagnosis p{color:#4b5563;line-height:1.6}
+    @media(max-width:1100px){#metricGrid{grid-template-columns:repeat(4,1fr)}#module1Summary{grid-template-columns:repeat(3,1fr)}.runtime-card-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){#metricGrid{grid-template-columns:repeat(2,1fr)}#module1Summary,.runtime-card-grid{grid-template-columns:1fr}.runtime-table{min-width:900px}}
   `;
   document.head.appendChild(style);
-  const money = (v) => "¥" + (num(v) / 2650).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
-  try {
-    const cloud = window.ShopeeCloud;
-    if (!cloud?.session) throw new Error("当前页面没有检测到管理员会话，请重新登录。");
-    const data = await cloud.loadCloudDatasets();
-    const m = data.module1 || {};
-    const links = Array.isArray(m.links) ? m.links : [];
-    const summary = m.summary || {};
-    const definitions = data.definitions || { parameters: { idrPerCny: 2650 }, metrics: [], sources: [] };
-    const totalViews = links.reduce((a,x)=>a+num(x.views),0);
-    const totalVisitors = links.reduce((a,x)=>a+num(x.visitors),0);
-    const totalOrders = links.reduce((a,x)=>a+num(x.orders),0);
-    const totalUnits = links.reduce((a,x)=>a+num(x.units),0);
-    const totalSales = links.reduce((a,x)=>a+num(x.sales),0);
-    const totalAtc = links.reduce((a,x)=>a+num(x.atcRate)*num(x.visitors),0);
-    const storeMap = new Map(), catMap = new Map();
-    const add = (map,key,x) => {
-      const k = key || "未定义";
-      const a = map.get(k) || { links:0, visitors:0, orders:0, sales:0, units:0 };
-      a.links++; a.visitors+=num(x.visitors); a.orders+=num(x.orders); a.sales+=num(x.sales); a.units+=num(x.units); map.set(k,a);
-    };
-    links.forEach(x => { add(storeMap,x.shop,x); add(catMap,x.category,x); });
-    const rows = (map) => [...map.entries()].sort((a,b)=>b[1].sales-a[1].sales).slice(0,12).map(([k,a]) =>
-      `<div class="overview-row"><strong>${esc(k)}</strong><span>${a.links} 条链接</span><span>${fmt(a.visitors)} 访客</span><b>${pct(a.visitors?a.orders/a.visitors:0)}</b><em>${money(a.sales)}</em></div>`).join("");
-    const metric = (label,value,note) => `<article><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`;
-    if ($("#metricGrid")) $("#metricGrid").innerHTML = [
-      metric("浏览量 PV",fmt(totalViews),"全量链接汇总"),
-      metric("访客 UV",fmt(totalVisitors),`${storeMap.size} 个店铺`),
-      metric("加购率",pct(totalVisitors?totalAtc/totalVisitors:0),"链接加购率汇总"),
-      metric("订单转化率",pct(totalVisitors?totalOrders/totalVisitors:0),`${fmt(totalOrders)} 单`),
-      metric("件转化率",pct(totalVisitors?totalUnits/totalVisitors:0),`${fmt(totalUnits)} 件`),
-      metric("GMV",money(totalSales),"统一人民币"),
-      metric("订单数",fmt(totalOrders),"当前快照")
-    ].join("");
-    if ($("#storeOverview")) $("#storeOverview").innerHTML = rows(storeMap);
-    if ($("#categoryOverview")) $("#categoryOverview").innerHTML = rows(catMap);
-    if ($("#linkOverview")) $("#linkOverview").innerHTML = `<div class="overview-row"><strong>${fmt(links.length)} 条链接</strong><span>${fmt(summary.models || links.reduce((a,x)=>a+num(x.modelSummary?.count),0))} Model</span><span>${fmt(summary.matched || links.filter(x=>x.matchStatus!=="未匹配").length)} 条已匹配</span><b>${pct(links.length?(summary.matched||0)/links.length:0)}</b><em>${money(totalSales)}</em></div>`;
-    if ($("#module1Summary")) $("#module1Summary").innerHTML = [
-      ["成熟池",summary.mature],["新品池",summary.newborn],["流量浪费",summary.waste],["黑马宝藏",summary.blackHorse],["下滑队列",summary.declining],["未匹配",links.length-(summary.matched||0)]
-    ].map(([l,v])=>`<article><span>${l}</span><strong>${fmt(v)}</strong><small>链接诊断队列</small></article>`).join("");
-    if ($("#listingTable")) $("#listingTable").innerHTML = links.slice(0,100).map(x=>`<tr><td><strong>${esc(x.category||"未定义")}</strong></td><td><a href="${esc(x.url||"#")}" target="_blank" rel="noopener">${esc(x.name||x.productId)}</a><small>Product ID ${esc(x.productId)}</small></td><td>${esc(x.shop)}</td><td>${esc(x.pool||"—")} / ${esc(x.tier||"—")}</td><td>${fmt(x.visitors)}</td><td>${pct(x.visitors?num(x.orders)/num(x.visitors):0)}</td><td>${fmt(x.units)} / ${money(x.sales)}</td><td>${esc(x.matchStatus||"—")}</td></tr>`).join("");
-    if ($("#diagnosisSourceNote")) $("#diagnosisSourceNote").textContent = `每张卡由${fmt(links.length)}条链接实时计算；当前数据来自 Supabase 云端快照。`;
-    if ($("#governanceStatus")) $("#governanceStatus").innerHTML = `<div><span>当前数据版本</span><strong>${esc(m.meta?.generatedAt || definitions.version || "云端快照")}</strong></div><div><span>已接入</span><strong>${fmt(links.length)} 链接 · ${fmt(summary.models || 0)} Model</strong></div><div><span>数据模式</span><strong>Supabase 云端</strong></div>`;
-    document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener("click", () => {
-      const id = link.getAttribute("href").slice(1);
-      const route = id === "overview" ? "overview" : id.startsWith("chat-") ? "workflows" : id === "listings" || id === "diagnosis" ? "listings" : id;
-      document.querySelectorAll("[data-route]").forEach((section) => { section.hidden = section.dataset.route !== route; });
-      document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.getAttribute("href") === "#" + route));
-      document.querySelector(".sidebar")?.classList.remove("open");
-    }));
-    document.querySelector("#workflowNavToggle")?.addEventListener("click", () => {
-      const menu = document.querySelector("#workflowSubmenu"); if (menu) menu.hidden = !menu.hidden;
-    });
-    document.body.dataset.dataReady = "true";
-  } catch (error) {
-    document.body.dataset.dataError = error.message;
-    const n = document.querySelector(".topbar");
-    if (n) n.insertAdjacentHTML("afterend", `<div class="load-error" style="margin:16px;padding:16px">云端数据加载失败：${esc(error.message)}</div>`);
-  }
+
+  function routeFor(id){ if(id==="overview") return "overview"; if(id==="subsidy") return "subsidy"; if(id==="data-governance") return "data-governance"; if(id==="tasks") return "tasks"; if(id==="sop") return "sop"; if(id==="listings"||id==="diagnosis") return "listings"; if(id.startsWith("chat-")||id==="workflows") return "workflows"; return "overview"; }
+  function go(id){ const route=routeFor(id); $$("[data-route]").forEach(s=>{s.hidden=s.dataset.route!==route}); $$(".nav-item").forEach(x=>x.classList.toggle("active",x.getAttribute("href")==="#"+route)); if(route==="workflows"){ $("#workflowSubmenu")?.removeAttribute("hidden"); $("#workflowNavToggle")?.setAttribute("aria-expanded","true"); } if(id) history.replaceState(null,"","#"+id); window.scrollTo({top:0,behavior:"smooth"}); }
+  function bindNav(){ $$('a[href^="#"]').forEach(a=>a.addEventListener("click",e=>{e.preventDefault();go(a.getAttribute("href").slice(1));})); $("#workflowNavToggle")?.addEventListener("click",()=>{const m=$("#workflowSubmenu");const open=m.hidden;m.hidden=!open;$("#workflowNavToggle").setAttribute("aria-expanded",String(open));}); $("#overview")?.removeAttribute("hidden"); }
+  function totals(items){return items.reduce((a,x)=>{a.views+=n(x.views);a.visitors+=n(x.visitors);a.orders+=n(x.orders);a.units+=n(x.units);a.sales+=n(x.sales);a.atc+=n(x.atcRate)*n(x.visitors);return a},{views:0,visitors:0,orders:0,units:0,sales:0,atc:0});}
+  function groups(key){const map=new Map();state.links.forEach(x=>{const k=x[key]||"未定义";const a=map.get(k)||{name:k,links:0,visitors:0,orders:0,units:0,sales:0};a.links++;a.visitors+=n(x.visitors);a.orders+=n(x.orders);a.units+=n(x.units);a.sales+=n(x.sales);map.set(k,a)});return [...map.values()].sort((a,b)=>b.sales-a.sales)}
+  function groupTable(items){return `<table class="overview-table"><thead><tr><th>名称</th><th>链接数</th><th>访客 UV</th><th>订单 CR</th><th>订单数</th><th>GMV（¥）</th></tr></thead><tbody>${items.slice(0,12).map(a=>`<tr><td><strong>${esc(a.name)}</strong></td><td>${fmt(a.links)}</td><td>${fmt(a.visitors)}</td><td class="good">${pct(a.visitors?a.orders/a.visitors:0)}</td><td>${fmt(a.orders)}</td><td class="money">${cny(a.sales)}</td></tr>`).join("")}</tbody></table>`}
+  function renderOverview(){const t=totals(state.links);const s=state.module1.summary||{};$("#metricGrid").innerHTML=[["浏览量 PV",fmt(t.views),"全量链接汇总"],["访客 UV",fmt(t.visitors),`${groups("shop").length} 个店铺`],["加购率",pct(t.visitors?t.atc/t.visitors:0),"访客加购率"],["订单转化率",pct(t.visitors?t.orders/t.visitors:0),`${fmt(t.orders)} 单`],["件转化率",pct(t.visitors?t.units/t.visitors:0),`${fmt(t.units)} 件`],["GMV",cny(t.sales),"统一人民币"],["订单数",fmt(t.orders),"当前快照"]].map(x=>`<article><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></article>`).join("");$("#storeOverview").innerHTML=groupTable(groups("shop"));$("#categoryOverview").innerHTML=groupTable(groups("category"));$("#linkOverview").innerHTML=groupTable([{name:"全量链接",links:state.links.length,visitors:t.visitors,orders:t.orders,units:t.units,sales:t.sales}]);$("#diagnosisSourceNote").textContent=`每张卡由${fmt(state.links.length)}条链接实时计算；点击“Listing 本地化”查看链接级诊断。`;$("#module1Summary").innerHTML=[["成熟池",s.mature],["新品池",s.newborn],["流量浪费",s.waste],["黑马宝藏",s.blackHorse],["下滑队列",s.declining],["未匹配",state.links.length-(s.matched||0)]].map(x=>`<article><span>${x[0]}</span><strong>${fmt(x[1])}</strong><small>链接诊断队列</small></article>`).join("");}
+  function diagnose(x){const cr=x.visitors?n(x.orders)/n(x.visitors):0;const atc=x.atcRate; if(x.matchStatus==="未匹配")return["匹配治理","补充产品、类目和 Model 映射后再投放。"]; if(["T1","T2"].includes(x.tier)&&["单月下滑","连续衰退"].includes(x.lifecycle))return["核心链接下滑","复核流量来源、活动退出、广告预算和库存 Model。"]; if(atc<0.03&&n(x.visitors)>1000)return["加购意向偏低","优先检查价格力、首图、套装利益点和规格表达。"]; if(cr<0.02&&n(x.visitors)>1000)return["流量转化偏低","先检查价格、评价、缺货 Model 与 Listing 承接。"]; return["保持监控","维持当前节奏，按周观察流量、CR、GMV 和环比。"];}
+  function renderListings(){const q=state.query.toLowerCase();let a=state.links.filter(x=>[x.productId,x.name,x.shop,x.category,x.url].join(" ").toLowerCase().includes(q));a=a.sort((x,y)=>(n(y[state.sortKey])-n(x[state.sortKey]))*(state.sortDir==="asc"?-1:1));state.filtered=a;const start=(state.page-1)*state.pageSize;$("#listingTable").innerHTML=a.slice(start,start+state.pageSize).map(x=>{const d=diagnose(x);return `<tr><td>${esc(x.category||"未定义")}</td><td><a href="${esc(x.url||"#")}" target="_blank" rel="noopener">${esc(x.name||x.productId)}</a><small>Product ID ${esc(x.productId)}</small></td><td>${esc(x.shop)}</td><td>${esc(x.pool||"—")} / ${esc(x.tier||"—")}</td><td>${fmt(x.visitors)}</td><td>${pct(x.visitors?n(x.orders)/n(x.visitors):0)}</td><td>${fmt(x.units)} / ${cny(x.sales)}</td><td>${fmt(x.modelSummary?.count||0)}</td><td>${esc(x.matchStatus||"—")}</td><td><button class="runtime-action" data-diagnose="${esc(x.productId)}">${d[0]}</button></td></tr>`}).join("");$("#listingPagination").innerHTML=`<div class="runtime-pagination"><span>共 ${fmt(a.length)} 条，第 ${Math.floor(start/state.pageSize)+1} / ${Math.max(1,Math.ceil(a.length/state.pageSize))} 页</span><span><button id="prevPage" ${state.page===1?"disabled":""}>上一页</button> <button id="nextPage" ${start+state.pageSize>=a.length?"disabled":""}>下一页</button></span></div>`;$("#prevPage")?.addEventListener("click",()=>{state.page--;renderListings()});$("#nextPage")?.addEventListener("click",()=>{state.page++;renderListings()});$$("[data-diagnose]").forEach(b=>b.addEventListener("click",()=>{const x=state.links.find(x=>String(x.productId)===b.dataset.diagnose);const d=diagnose(x);$("#diagnosisDialogTitle").textContent=`${d[0]} · ${x.name}`;$("#diagnosisDialogBody").innerHTML=`<p><b>Product ID：</b>${esc(x.productId)}</p><p><b>指标证据：</b>访客 ${fmt(x.visitors)} · 订单 CR ${pct(x.visitors?n(x.orders)/n(x.visitors):0)} · GMV ${cny(x.sales)} · ${esc(x.lifecycle||"生命周期待补充")}</p><p><b>AI 建议动作：</b>${d[1]}</p>`;$("#diagnosisDialog")?.showModal?.()||go("diagnosis");}));}
+  function renderWorkflows(){const cards=[["板块 1","Listing 本地化","链接级诊断、类目归属、Product ID 方案","listings"],["板块 2","广告出价调优","关键词、花费、ROAS 与预算","workflows"],["板块 3","店铺漏斗归因","店铺、类目、流量和转化","overview"],["板块 4","客服与竞品","差评、异议、竞品和话术","workflows"],["板块 5","主控与 SOP","任务生成、日报、周报与复盘","sop"]];$("#workflowGrid").innerHTML=cards.map(c=>`<article class="runtime-card"><span class="tag">${c[0]}</span><h3>${c[1]}</h3><p>${c[2]}</p><button class="runtime-action primary" data-go="${c[3]}">进入模块 →</button></article>`).join("");$$("[data-go]").forEach(b=>b.addEventListener("click",()=>go(b.dataset.go)));}
+  function renderSubsidy(){const candidates=state.links.map(x=>{const cr=x.visitors?n(x.orders)/n(x.visitors):0;const score=(n(x.visitors)>1000?1:0)+(cr<.02?1:0)+(n(x.mom)>0?1:0);return {...x,score}}).filter(x=>x.score>=2).sort((a,b)=>b.score-a.score||b.sales-a.sales).slice(0,30);$("#subsidySummary").innerHTML=`<div class="runtime-card-grid"><article class="runtime-card"><span class="tag">候选链接</span><h3>${fmt(candidates.length)}</h3><p>流量足、转化待验证或趋势向上</p></article><article class="runtime-card"><span class="tag">建议预算</span><h3>¥${fmt(Math.min(100000,candidates.length*300))}</h3><p>先小额测试，再按 CR 和订单增量复盘</p></article></div>`;$("#subsidyTable").innerHTML=candidates.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.shop)}</td><td>${fmt(x.visitors)}</td><td>${pct(x.visitors?n(x.orders)/n(x.visitors):0)}</td><td>${pct(n(x.mom))}</td><td>${cny(x.sales)}</td><td><span class="tag">建议测试</span></td></tr>`).join("");}
+  function renderGovernance(){const d=state.definitions||{};$("#governanceStatus").innerHTML=`<div><span>数据版本</span><strong>${esc(state.module1.meta?.generatedAt||d.version||"云端快照")}</strong></div><div><span>数据范围</span><strong>${fmt(state.links.length)} 链接 · ${fmt(state.module1.summary?.models||0)} Model</strong></div><div><span>数据模式</span><strong>Supabase 云端</strong></div>`;$("#sourceGrid").innerHTML=(d.sources||[]).map(s=>`<article class="runtime-card"><span class="tag">${esc(s.id)}</span><h3>${esc(s.name)}</h3><p>${esc(s.role)}</p><small>${esc(s.fields)}</small></article>`).join("");$("#metricDefinitionTable").innerHTML=(d.metrics||[]).map(m=>`<tr><td><strong>${esc(m.name)}</strong></td><td>${esc(m.formula)}</td><td><code>${esc(m.source)}</code></td><td>${esc(m.usage)}</td></tr>`).join("");}
+  function bind(){bindNav();$("#listingSearch")?.addEventListener("input",e=>{state.query=e.target.value;state.page=1;renderListings()});$$(".listing-table th").forEach((th,i)=>th.addEventListener("click",()=>{const keys=["category","name","shop","tier","visitors","cr","sales","model","match","diagnosis"];state.sortKey=keys[i]||"sales";state.sortDir=state.sortDir==="asc"?"desc":"asc";renderListings()}));$("#closeDiagnosisDialog")?.addEventListener("click",()=>$("#diagnosisDialog")?.close());}
+  async function init(){try{if(!window.ShopeeCloud?.session)throw new Error("管理员会话已失效，请重新登录。");const d=await window.ShopeeCloud.loadCloudDatasets();state.data=d.dashboard;state.module1=d.module1;state.definitions=d.definitions;state.links=state.module1.links||[];renderOverview();renderListings();renderWorkflows();renderSubsidy();renderGovernance();bind();document.body.dataset.dataReady="true";}catch(e){document.body.dataset.dataError=e.message;$(".topbar")?.insertAdjacentHTML("afterend",`<div class="load-error" style="margin:16px;padding:16px">数据加载失败：${esc(e.message)}</div>`);}}
+  init();
 })();
