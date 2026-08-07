@@ -40,22 +40,22 @@
     const start=(state.page-1)*state.pageSize;
     $("#listingTable").innerHTML=a.slice(start,start+state.pageSize).map(x=>{
       const d=diagnose(x), cr=x.visitors?n(x.orders)/n(x.visitors):0, uv=x.visitors?n(x.sales)/n(x.visitors):0, models=n(x.modelSummary?.count);
-      return \`<tr>
-        <td><strong>\${esc(x.category||"未定义")}</strong><small>\${esc(x.subcategory||"")}</small></td>
-        <td><a class="product-link" href="\${esc(x.url||"#")}" target="_blank" rel="noopener">\${esc(x.name||x.productId)}</a><small>Product ID：\${esc(x.productId)}</small></td>
-        <td>\${esc(x.business||x.position||x.matrix||"待定位")}<small>\${esc(x.lifecycle||"生命周期待补充")}</small></td>
-        <td>\${esc(x.pool||"—")} / \${esc(x.tier||"—")}</td>
-        <td>\${esc(x.shop||"未定义")}</td>
-        <td><strong>访客 \${fmt(x.visitors)}</strong><small>浏览 \${fmt(x.views)}</small></td>
-        <td><strong>订单 CR \${pct(cr)}</strong><small>加购率 \${pct(x.atcRate)}</small></td>
-        <td><strong>\${fmt(x.units)} 件</strong><small>GMV \${cny(x.sales)}</small></td>
-        <td><a href="#" class="model-link" data-model-product="\${esc(x.productId)}">\${fmt(models)} 个 Model</a><small>\${esc(x.matchStatus||"待匹配")}</small></td>
-        <td><strong>\${cny(uv)}</strong><small>GMV ÷ 访客</small></td>
-        <td><button class="runtime-action" data-diagnose="\${esc(x.productId)}">\${esc(d[0])}</button><small>点击查看动作闭环</small></td>
-      </tr>\`;
+      return `<tr>
+        <td><strong>${esc(x.category||"未定义")}</strong><small>${esc(x.subcategory||"")}</small></td>
+        <td><a class="product-link" href="${esc(x.url||"#")}" target="_blank" rel="noopener">${esc(x.name||x.productId)}</a><small>Product ID：${esc(x.productId)}</small></td>
+        <td>${esc(x.business||x.position||x.matrix||"待定位")}<small>${esc(x.lifecycle||"生命周期待补充")}</small></td>
+        <td>${esc(x.pool||"—")} / ${esc(x.tier||"—")}</td>
+        <td>${esc(x.shop||"未定义")}</td>
+        <td><strong>访客 ${fmt(x.visitors)}</strong><small>浏览 ${fmt(x.views)}</small></td>
+        <td><strong>订单 CR ${pct(cr)}</strong><small>加购率 ${pct(x.atcRate)}</small></td>
+        <td><strong>${fmt(x.units)} 件</strong><small>GMV ${cny(x.sales)}</small></td>
+        <td><a href="#" class="model-link" data-model-product="${esc(x.productId)}">${fmt(models)} 个 Model</a><small>${esc(x.matchStatus||"待匹配")}</small></td>
+        <td><strong>${cny(uv)}</strong><small>GMV ÷ 访客</small></td>
+        <td><button class="runtime-action" data-diagnose="${esc(x.productId)}">${esc(d[0])}</button><small>点击查看动作闭环</small></td>
+      </tr>`;
     }).join("");
     $("#listingEmpty").hidden=a.length>0;
-    $("#listingPagination").innerHTML=\`<div class="runtime-pagination"><span>共 \${fmt(a.length)} 条，第 \${Math.floor(start/state.pageSize)+1} / \${Math.max(1,Math.ceil(a.length/state.pageSize))} 页</span><span><button id="prevPage" \${state.page===1?"disabled":""}>上一页</button> <button id="nextPage" \${start+state.pageSize>=a.length?"disabled":""}>下一页</button></span></div>\`;
+    $("#listingPagination").innerHTML=`<div class="runtime-pagination"><span>共 ${fmt(a.length)} 条，第 ${Math.floor(start/state.pageSize)+1} / ${Math.max(1,Math.ceil(a.length/state.pageSize))} 页</span><span><button id="prevPage" ${state.page===1?"disabled":""}>上一页</button> <button id="nextPage" ${start+state.pageSize>=a.length?"disabled":""}>下一页</button></span></div>`;
     $("#prevPage")?.addEventListener("click",()=>{state.page--;renderListings()}); $("#nextPage")?.addEventListener("click",()=>{state.page++;renderListings()});
     $$("[data-diagnose]").forEach(b=>b.addEventListener("click",()=>{const x=state.links.find(x=>String(x.productId)===b.dataset.diagnose); showDiagnosis(x);}));
     $$("[data-model-product]").forEach(b=>b.addEventListener("click",e=>{e.preventDefault(); const x=state.links.find(x=>String(x.productId)===b.dataset.modelProduct); showDiagnosis(x);}));
@@ -63,9 +63,9 @@
   function showDiagnosis(x){
     if(!x)return;
     const d=diagnose(x), cr=x.visitors?n(x.orders)/n(x.visitors):0;
-    $("#diagnosisDialogTitle").textContent=\`\${d[0]} · \${x.name||x.productId}\`;
-    $("#diagnosisDialogTags").innerHTML=\`<span class="tag">\${esc(x.category||"未定义")}</span><span class="tag">\${esc(x.pool||"—")} / \${esc(x.tier||"—")}</span><span class="tag">\${esc(x.matchStatus||"待匹配")}</span>\`;
-    $("#diagnosisDialogBody").innerHTML=\`<div class="closure-flow"><span>诊断</span><b>→</b><span>动作</span><b>→</b><span>验证</span><b>→</b><span>复盘</span></div><p><b>Product ID：</b>\${esc(x.productId)}</p><p><b>指标证据：</b>访客 \${fmt(x.visitors)} · 订单 CR \${pct(cr)} · 加购率 \${pct(x.atcRate)} · GMV \${cny(x.sales)} · \${esc(x.lifecycle||"生命周期待补充")}</p><p><b>诊断结论：</b>\${esc(d[0])}</p><p><b>执行动作：</b>\${esc(d[1])}</p><p><b>验证指标：</b>7天观察访客、加购率、订单 CR、GMV 与订单增量。</p><p><b>复盘条件：</b>达到目标则保持；未达到则进入价格、素材、库存或 Model 二次排查。</p><div class="dialog-actions"><button class="runtime-action primary" id="createTaskFromDiagnosis">生成链接任务</button><button class="runtime-action" id="jumpToTasks">查看任务看板</button></div>\`;
+    $("#diagnosisDialogTitle").textContent=`${d[0]} · ${x.name||x.productId}`;
+    $("#diagnosisDialogTags").innerHTML=`<span class="tag">${esc(x.category||"未定义")}</span><span class="tag">${esc(x.pool||"—")} / ${esc(x.tier||"—")}</span><span class="tag">${esc(x.matchStatus||"待匹配")}</span>`;
+    $("#diagnosisDialogBody").innerHTML=`<div class="closure-flow"><span>诊断</span><b>→</b><span>动作</span><b>→</b><span>验证</span><b>→</b><span>复盘</span></div><p><b>Product ID：</b>${esc(x.productId)}</p><p><b>指标证据：</b>访客 ${fmt(x.visitors)} · 订单 CR ${pct(cr)} · 加购率 ${pct(x.atcRate)} · GMV ${cny(x.sales)} · ${esc(x.lifecycle||"生命周期待补充")}</p><p><b>诊断结论：</b>${esc(d[0])}</p><p><b>执行动作：</b>${esc(d[1])}</p><p><b>验证指标：</b>7天观察访客、加购率、订单 CR、GMV 与订单增量。</p><p><b>复盘条件：</b>达到目标则保持；未达到则进入价格、素材、库存或 Model 二次排查。</p><div class="dialog-actions"><button class="runtime-action primary" id="createTaskFromDiagnosis">生成链接任务</button><button class="runtime-action" id="jumpToTasks">查看任务看板</button></div>`;
     $("#diagnosisDialog")?.showModal?.();
     $("#createTaskFromDiagnosis")?.addEventListener("click",()=>{ $("#toast").textContent="已生成链接级任务，可在任务看板继续跟进。"; $("#toast").classList.add("show"); setTimeout(()=>$("#toast")?.classList.remove("show"),1800); });
     $("#jumpToTasks")?.addEventListener("click",()=>{ $("#diagnosisDialog")?.close(); go("tasks"); });
