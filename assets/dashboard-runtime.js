@@ -4,6 +4,26 @@
   const num = (v) => Number(v) || 0;
   const fmt = (v) => num(v).toLocaleString("zh-CN");
   const pct = (v) => (num(v) * 100).toFixed(2) + "%";
+  const style = document.createElement("style");
+  style.textContent = `
+    #metricGrid{display:grid;grid-template-columns:repeat(7,minmax(130px,1fr));gap:0;border:1px solid #e5e7eb;border-radius:18px;overflow:hidden}
+    #metricGrid article{min-height:120px;padding:22px 18px;border-right:1px solid #e5e7eb;background:#fff;display:flex;flex-direction:column;gap:10px}
+    #metricGrid article:last-child{border-right:0}
+    #metricGrid article span{font-size:14px;color:#6b7280;font-weight:600}
+    #metricGrid article strong{font-size:24px;line-height:1.1;color:#111827;white-space:nowrap}
+    #metricGrid article small{font-size:12px;color:#9ca3af}
+    .overview-row{display:grid;grid-template-columns:minmax(180px,1.5fr) 110px 150px 90px 120px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid #eef0f2;font-size:14px;white-space:nowrap}
+    .overview-row strong{font-weight:700;color:#1f2937}.overview-row span{color:#6b7280}.overview-row b{color:#176b4d}.overview-row em{font-style:normal;font-weight:700;color:#111827}
+    #storeOverview,#categoryOverview,#linkOverview{padding:12px 26px 18px}
+    #module1Summary{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:12px}
+    #module1Summary article{padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fff}
+    #module1Summary article span,#module1Summary article small{display:block;color:#6b7280;font-size:12px}
+    #module1Summary article strong{display:block;font-size:22px;margin:6px 0}
+    #listingTable td{padding:10px 8px;vertical-align:top}#listingTable small{display:block;color:#9ca3af;margin-top:4px}
+    @media(max-width:1100px){#metricGrid{grid-template-columns:repeat(4,1fr)}#module1Summary{grid-template-columns:repeat(3,1fr)}.overview-row{grid-template-columns:1.4fr 90px 120px 70px 100px}}
+    @media(max-width:700px){#metricGrid{grid-template-columns:repeat(2,1fr)}#metricGrid article{border-bottom:1px solid #e5e7eb}.overview-row{grid-template-columns:1fr 90px 90px}.overview-row b,.overview-row em{display:none}}
+  `;
+  document.head.appendChild(style);
   const money = (v) => "¥" + (num(v) / 2650).toLocaleString("zh-CN", { maximumFractionDigits: 0 });
   try {
     const cloud = window.ShopeeCloud;
@@ -47,6 +67,16 @@
     if ($("#listingTable")) $("#listingTable").innerHTML = links.slice(0,100).map(x=>`<tr><td><strong>${esc(x.category||"未定义")}</strong></td><td><a href="${esc(x.url||"#")}" target="_blank" rel="noopener">${esc(x.name||x.productId)}</a><small>Product ID ${esc(x.productId)}</small></td><td>${esc(x.shop)}</td><td>${esc(x.pool||"—")} / ${esc(x.tier||"—")}</td><td>${fmt(x.visitors)}</td><td>${pct(x.visitors?num(x.orders)/num(x.visitors):0)}</td><td>${fmt(x.units)} / ${money(x.sales)}</td><td>${esc(x.matchStatus||"—")}</td></tr>`).join("");
     if ($("#diagnosisSourceNote")) $("#diagnosisSourceNote").textContent = `每张卡由${fmt(links.length)}条链接实时计算；当前数据来自 Supabase 云端快照。`;
     if ($("#governanceStatus")) $("#governanceStatus").innerHTML = `<div><span>当前数据版本</span><strong>${esc(m.meta?.generatedAt || definitions.version || "云端快照")}</strong></div><div><span>已接入</span><strong>${fmt(links.length)} 链接 · ${fmt(summary.models || 0)} Model</strong></div><div><span>数据模式</span><strong>Supabase 云端</strong></div>`;
+    document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener("click", () => {
+      const id = link.getAttribute("href").slice(1);
+      const route = id === "overview" ? "overview" : id.startsWith("chat-") ? "workflows" : id === "listings" || id === "diagnosis" ? "listings" : id;
+      document.querySelectorAll("[data-route]").forEach((section) => { section.hidden = section.dataset.route !== route; });
+      document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.getAttribute("href") === "#" + route));
+      document.querySelector(".sidebar")?.classList.remove("open");
+    }));
+    document.querySelector("#workflowNavToggle")?.addEventListener("click", () => {
+      const menu = document.querySelector("#workflowSubmenu"); if (menu) menu.hidden = !menu.hidden;
+    });
     document.body.dataset.dataReady = "true";
   } catch (error) {
     document.body.dataset.dataError = error.message;
