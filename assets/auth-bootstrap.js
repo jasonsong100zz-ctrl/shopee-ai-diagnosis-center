@@ -177,7 +177,7 @@ async function startApp(session, demo = false) {
   }
   authRoot.hidden = true;
   document.body.classList.remove("auth-pending");
-  await import("./app.js");
+  await import("./dashboard-runtime.js");
   await decorateApp();
 }
 
