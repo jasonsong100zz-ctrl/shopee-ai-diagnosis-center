@@ -177,7 +177,13 @@ async function startApp(session, demo = false) {
   }
   authRoot.hidden = true;
   document.body.classList.remove("auth-pending");
-  await import("./dashboard-runtime.js?v=20260807");
+  await new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "./assets/dashboard-runtime.js?v=20260807";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("看板核心脚本加载失败，请刷新后重试。"));
+    document.head.appendChild(script);
+  });
   await decorateApp();
 }
 
