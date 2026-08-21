@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-secure-site.mjs",
-    "validate": "node scripts/validate.mjs"
+    "validate": "node scripts/validate.mjs",
+    "competitor:import": "node scripts/import-competitor-links.mjs",
+    "competitor:collect": "node scripts/collect-competitor-snapshots.mjs",
+    "competitor:publish": "node scripts/publish-competitor-snapshots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }
-
-

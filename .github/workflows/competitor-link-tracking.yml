@@ -1,0 +1,67 @@
+name: Track Shopee competitor links
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: competitor-link-tracking
+  cancel-in-progress: false
+
+env:
+  COMPETITOR_SHEET_CSV_URL: https://docs.google.com/spreadsheets/d/1sQfu_8VCBhH3WnKp67It3RwiB8vQRLjBzSWY9ndWI8w/export?format=csv&gid=0
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Restore snapshot history
+        uses: actions/cache@v4
+        with:
+          path: tmp/competitor-snapshots
+          key: competitor-snapshots-${{ github.run_id }}
+          restore-keys: competitor-snapshots-
+
+      - name: Import competitor watchlist
+        run: npm run competitor:import -- --url "$COMPETITOR_SHEET_CSV_URL" --out "tmp/competitor-watchlist.json"
+
+      - name: Collect daily snapshots
+        run: npm run competitor:collect -- --watchlist "tmp/competitor-watchlist.json" --out-dir "tmp/competitor-snapshots"
+
+      - name: Publish snapshots to Supabase
+        if: ${{ vars.COMPETITOR_WORKSPACE_ID != '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          COMPETITOR_WORKSPACE_ID: ${{ vars.COMPETITOR_WORKSPACE_ID }}
+        run: npm run competitor:publish -- --snapshot "$(find tmp/competitor-snapshots -maxdepth 1 -name '*.json' | sort | tail -n 1)" --watchlist "tmp/competitor-watchlist.json"
+
+      - name: Upload snapshots and events
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-link-tracking-${{ github.run_number }}
+          path: |
+            tmp/competitor-watchlist.json
+            tmp/competitor-snapshots/*.json
+          if-no-files-found: warn
