@@ -52,42 +52,44 @@ function normalizeRows(input) {
   }).filter((record) => record.enabled);
 }
 
-const REPORT_HEADERS = ["结果", "清单行号", "品类", "产品", "竞对品牌", "市场", "商品链接", "商品标题", "采集日期", "采集状态", "价格", "原价", "折扣", "币种", "评分", "评论数", "累计已售（代理）", "库存状态", "卖家", "品牌", "SKU数量", "优惠券数量", "配送摘要", "促销摘要", "错误信息"];
+const REPORT_HEADERS = ["采集日期", "品类", "产品", "竞对品牌", "市场", "商品链接", "店铺ID", "商品ID", "商品标题", "当前价格", "原价", "折扣率", "币种", "最低SKU价格", "最高SKU价格", "SKU名称", "SKU价格明细", "库存状态", "累计已售代理值", "评分", "评论数", "促销摘要", "优惠券", "配送摘要", "采集状态", "失败原因"];
 
 function linesText(value) { return Array.isArray(value?.lines) ? value.lines.join(" | ") : ""; }
 function percentText(value) { return Number.isFinite(value) ? `${Number((value * 100).toFixed(2))}%` : ""; }
 function reportRow(record, snapshot) {
+  const modelPriceText = (snapshot.model_prices || []).map((model) => `${model.model_name || "未命名"}:${model.price === null || model.price === undefined ? "需选择确认" : model.price}${model.currency ? ` ${model.currency}` : ""}${model.stock === null || model.stock === undefined ? "" : `（库存 ${model.stock}）`}`).join(" | ");
   return {
-    "结果": "成功",
-    "清单行号": record.source_row ?? "",
+    "采集日期": snapshot.capture_date || "",
     "品类": record.category || "",
     "产品": record.product_name || "",
     "竞对品牌": record.competitor_brand || "",
     "市场": record.market || "",
     "商品链接": snapshot.source_url || record.product_url || "",
+    "店铺ID": record.shop_id || "",
+    "商品ID": record.item_id || "",
     "商品标题": snapshot.product_title || "",
-    "采集日期": snapshot.capture_date || "",
-    "采集状态": snapshot.capture_status || "",
-    "价格": snapshot.price ?? "",
+    "当前价格": snapshot.price ?? "",
     "原价": snapshot.original_price ?? "",
-    "折扣": percentText(snapshot.discount_rate),
+    "折扣率": percentText(snapshot.discount_rate),
     "币种": snapshot.currency || "",
+    "最低SKU价格": snapshot.price_min ?? "",
+    "最高SKU价格": snapshot.price_max ?? "",
+    "SKU名称": (snapshot.model_names || []).join(" | "),
+    "SKU价格明细": modelPriceText,
+    "库存状态": snapshot.stock_status || snapshot.product_status || "",
+    "累计已售代理值": snapshot.sold_total ?? "",
     "评分": snapshot.rating ?? "",
     "评论数": snapshot.review_count ?? "",
-    "累计已售（代理）": snapshot.sold_total ?? "",
-    "库存状态": snapshot.stock_status || snapshot.product_status || "",
-    "卖家": snapshot.seller_name || "",
-    "品牌": snapshot.brand_name || "",
-    "SKU数量": snapshot.model_names?.length ?? "",
-    "优惠券数量": snapshot.voucher_lines?.length ?? "",
-    "配送摘要": linesText(snapshot.shipping_summary),
     "促销摘要": linesText(snapshot.promotion_summary),
-    "错误信息": snapshot.error_message || ""
+    "优惠券": (snapshot.voucher_lines || []).join(" | "),
+    "配送摘要": linesText(snapshot.shipping_summary),
+    "采集状态": snapshot.capture_status || "",
+    "失败原因": snapshot.error_message || ""
   };
 }
 function failedReportRow(item) {
   const record = item.record || {};
-  return { "结果": "失败", "清单行号": item.source_row ?? "", "品类": record.category || "", "产品": item.product_name || record.product_name || "", "竞对品牌": record.competitor_brand || "", "市场": record.market || "", "商品链接": item.product_url || record.product_url || "", "错误信息": item.error || "" };
+  return { "采集日期": new Date().toISOString().slice(0, 10), "品类": record.category || "", "产品": item.product_name || record.product_name || "", "竞对品牌": record.competitor_brand || "", "市场": record.market || "", "商品链接": item.product_url || record.product_url || "", "店铺ID": record.shop_id || "", "商品ID": record.item_id || "", "采集状态": "failed", "失败原因": item.error || "" };
 }
 function csvCell(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
 function buildReportCsv(state) {
