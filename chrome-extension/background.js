@@ -52,7 +52,50 @@ function normalizeRows(input) {
   }).filter((record) => record.enabled);
 }
 
-async function getState() { return chrome.storage.local.get({ settings: DEFAULTS, queue: [], index: 0, running: false, paused: false, status: "未开始", results: [], failed: [] }); }
+const REPORT_HEADERS = ["结果", "清单行号", "品类", "产品", "竞对品牌", "市场", "商品链接", "商品标题", "采集日期", "采集状态", "价格", "原价", "折扣", "币种", "评分", "评论数", "累计已售（代理）", "库存状态", "卖家", "品牌", "SKU数量", "优惠券数量", "配送摘要", "促销摘要", "错误信息"];
+
+function linesText(value) { return Array.isArray(value?.lines) ? value.lines.join(" | ") : ""; }
+function percentText(value) { return Number.isFinite(value) ? `${Number((value * 100).toFixed(2))}%` : ""; }
+function reportRow(record, snapshot) {
+  return {
+    "结果": "成功",
+    "清单行号": record.source_row ?? "",
+    "品类": record.category || "",
+    "产品": record.product_name || "",
+    "竞对品牌": record.competitor_brand || "",
+    "市场": record.market || "",
+    "商品链接": snapshot.source_url || record.product_url || "",
+    "商品标题": snapshot.product_title || "",
+    "采集日期": snapshot.capture_date || "",
+    "采集状态": snapshot.capture_status || "",
+    "价格": snapshot.price ?? "",
+    "原价": snapshot.original_price ?? "",
+    "折扣": percentText(snapshot.discount_rate),
+    "币种": snapshot.currency || "",
+    "评分": snapshot.rating ?? "",
+    "评论数": snapshot.review_count ?? "",
+    "累计已售（代理）": snapshot.sold_total ?? "",
+    "库存状态": snapshot.stock_status || snapshot.product_status || "",
+    "卖家": snapshot.seller_name || "",
+    "品牌": snapshot.brand_name || "",
+    "SKU数量": snapshot.model_names?.length ?? "",
+    "优惠券数量": snapshot.voucher_lines?.length ?? "",
+    "配送摘要": linesText(snapshot.shipping_summary),
+    "促销摘要": linesText(snapshot.promotion_summary),
+    "错误信息": snapshot.error_message || ""
+  };
+}
+function failedReportRow(item) {
+  const record = item.record || {};
+  return { "结果": "失败", "清单行号": item.source_row ?? "", "品类": record.category || "", "产品": item.product_name || record.product_name || "", "竞对品牌": record.competitor_brand || "", "市场": record.market || "", "商品链接": item.product_url || record.product_url || "", "错误信息": item.error || "" };
+}
+function csvCell(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+function buildReportCsv(state) {
+  const rows = [...(state.reportRows || []), ...(state.failed || []).map(failedReportRow)];
+  return `\uFEFF${[REPORT_HEADERS, ...rows.map((row) => REPORT_HEADERS.map((header) => row[header] ?? ""))].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+}
+function reportFileName(state) { return state.reportFileName || `FM竞品监控-${new Date().toISOString().slice(0, 10)}.csv`; }
+async function getState() { return chrome.storage.local.get({ settings: DEFAULTS, queue: [], index: 0, running: false, paused: false, status: "未开始", results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null }); }
 async function updateBadge(state) {
   if (state.paused) {
     await chrome.action.setBadgeText({ text: "!" });
@@ -134,7 +177,7 @@ async function collectCurrent() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || `发布失败: HTTP ${response.status}`);
       const latest = await getState();
-      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: true }], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}` });
+      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: true }], reportRows: [...(latest.reportRows || []), reportRow(record, result.snapshot)], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}` });
     } catch (error) {
       const latest = await getState();
       if (!latest.running || latest.paused) return;
@@ -146,7 +189,17 @@ async function collectCurrent() {
 
 async function finish() {
   const state = await getState();
-  await setState({ running: false, paused: false, status: state.failed.length ? `监控完成：成功 ${state.results.length} 条，失败 ${state.failed.length} 条` : `监控完成：成功 ${state.results.length} 条` });
+  const fileName = reportFileName(state);
+  await setState({ running: false, paused: false, reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, status: state.failed.length ? `监控完成：成功 ${state.results.length} 条，失败 ${state.failed.length} 条` : `监控完成：成功 ${state.results.length} 条` });
+}
+
+async function downloadReport() {
+  const state = await getState();
+  if (state.running || !state.status?.startsWith("监控完成")) throw new Error("任务尚未完成，暂时没有可下载结果");
+  const fileName = reportFileName(state);
+  const downloadId = await chrome.downloads.download({ url: `data:text/csv;charset=utf-8,${encodeURIComponent(buildReportCsv(state))}`, filename: fileName, saveAs: true });
+  await setState({ reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, status: `${state.status} · 下载已发起` });
+  return { ok: true, downloadId, fileName };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -159,7 +212,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const settings = { ...DEFAULTS, ...message.settings, sheetUrl: sheetCsvUrl(message.settings?.sheetUrl || DEFAULTS.sheetUrl) };
       await chrome.storage.local.set({ settings });
       const fetched = await fetchQueue(settings);
-      await setState({ queue: fetched.queue, index: 0, results: [], failed: [], running: true, paused: false, status: `已读取 ${fetched.queue.length} 条链接` });
+      await setState({ queue: fetched.queue, index: 0, results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null, running: true, paused: false, status: `已读取 ${fetched.queue.length} 条链接` });
       await collectCurrent();
     })().catch((error) => setState({ running: false, paused: true, status: `失败：${error.message}` }));
     sendResponse({ ok: true });
@@ -169,10 +222,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       const state = await getState();
       if (state.running || !state.failed.length) return;
-      await setState({ queue: state.failed.map((item) => item.record), index: 0, results: [], failed: [], running: true, paused: false, status: `准备重试 ${state.failed.length} 条链接` });
+      await setState({ queue: state.failed.map((item) => item.record), index: 0, failed: [], reportFileName: null, downloadPath: null, running: true, paused: false, status: `准备重试 ${state.failed.length} 条链接` });
       await collectCurrent();
     })().catch((error) => setState({ running: false, paused: true, status: `失败：${error.message}` }));
     sendResponse({ ok: true });
+  }
+  if (message?.type === "DOWNLOAD_REPORT") {
+    downloadReport().then(sendResponse).catch((error) => sendResponse({ ok: false, error: error.message || String(error) }));
   }
   if (message?.type === "STOP") setState({ running: false, paused: false, status: "已停止" }).then(() => sendResponse({ ok: true }));
   return true;

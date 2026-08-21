@@ -125,6 +125,7 @@ npm run competitor:publish -- --snapshot "tmp/competitor-snapshots/2026-08-21.js
 2. 准备一个自己有权限访问的 Google Sheet 链接；现在可以直接粘贴 `/edit?gid=0`、`/view?gid=0` 或 CSV 导出链接，扩展会自动转换为 CSV 地址。
 3. 启动本机桥接服务，并使用同一个 `COMPETITOR_WORKSPACE_ID`。扩展不会保存或读取 Chrome 密码、Cookie。
 4. 点击“开始监控”；面板会显示已读取数量、成功/失败数量。遇到 Shopee 验证时人工完成验证，再点“验证后继续”；结束后可点“重试失败”。
+5. 任务完成后，点击“下载本次结果 CSV”，Chrome 会让使用者选择保存位置。CSV 同时包含成功采集字段和失败链接，默认文件名为 `FM竞品监控-YYYY-MM-DD.csv`。
 
 当前桥接服务需要本机配置 Supabase Service Role Key，因此不应把现有桥接目录和密钥直接分发给多人。小范围试用可以由管理员为每台电脑配置受控环境；正式多人版应迁移到 Supabase Auth + Edge Function：扩展只使用用户登录态和 anon key，Edge Function 服务端保存 Service Role Key，并按用户所属 workspace 做 RLS 权限校验。这样业务人员最终才可以做到“安装扩展 + 粘贴清单链接 + 选择工作区”。
 
