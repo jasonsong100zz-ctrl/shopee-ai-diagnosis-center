@@ -21,7 +21,8 @@ const state = {
   importFiles: {},
   subsidyBudget: Number(localStorage.getItem("shopee-ai-subsidy-budget")) || 100000,
   template: "daily",
-  completedTasks: new Set(JSON.parse(localStorage.getItem("shopee-ai-completed") || "[]"))
+  completedTasks: new Set(JSON.parse(localStorage.getItem("shopee-ai-completed") || "[]")),
+  snapshots: null
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -206,6 +207,12 @@ function formatMoney(value) {
   if (amount >= 1e4) return `¥${(amount / 1e4).toFixed(2)}万`;
   if (amount >= 1000) return `¥${Math.round(amount).toLocaleString("zh-CN")}`;
   return `¥${amount.toFixed(2)}`;
+}
+
+function formatSnapshotDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || "未知");
+  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function benchmarkBadge(label, ratio, mode = "percent") {
@@ -700,7 +707,11 @@ function refreshDashboard() {
   prepareModule1Data();
   const summary = state.module1.summary;
   const declineRate = summary.mature ? summary.declining / summary.mature : 0;
-  $(".hero-date strong").textContent = `2026 年 7 月 · ${state.module1.summary.shops} 个店铺`;
+  const period = state.module1.meta?.periodLabel || state.module1.meta?.period || state.data?.periodLabel || state.data?.period || "当前周期";
+  const snapshotDates = Object.values(state.snapshots || {}).map(snapshot => snapshot.updated_at).filter(Boolean).sort();
+  const lastUpdated = snapshotDates.at(-1) || state.module1.meta?.generatedAt || state.definitions.version;
+  $(".hero-date strong").textContent = `${period} · ${state.module1.summary.shops} 个店铺`;
+  $(".sidebar-note small").textContent = `数据更新 · ${formatSnapshotDate(lastUpdated)}`;
   $(".hero-signal p").textContent = `成熟链接中 ${formatPercent(declineRate)} 处于单月下滑或连续衰退；当前优先保护 ${summary.t1t2} 条 T1/T2 核心链接。`;
   $("#currencyNote").textContent = `链接销售数据不重复累计 Model；金额统一人民币，当前汇率 ¥1 = Rp${Number(state.definitions.parameters.idrPerCny).toLocaleString("zh-CN")}。`;
   $("#diagnosisSourceNote").textContent = `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看AI方案。`;
@@ -884,6 +895,7 @@ async function init() {
       state.data = cloudData.dashboard;
       state.module1 = cloudData.module1;
       state.definitions = cloudData.definitions;
+      state.snapshots = cloudData.snapshots || null;
       window.ShopeeCloud.sourceMode = "cloud";
     } else {
       const [dashboardResponse, module1Response, definitionsResponse] = await Promise.all([fetch(DATA_URL), fetch(MODULE1_URL), fetch(DEFINITIONS_URL)]);

@@ -58,10 +58,13 @@ function validateSnapshotRecords(records) {
   if (!dashboard || !Array.isArray(dashboard.workflows) || !Array.isArray(dashboard.sop)) throw new Error("云端 dashboard 快照结构不完整，请重新发布数据。");
   if (!module1 || !Array.isArray(module1.links)) throw new Error("云端 module1 快照缺少链接数据，请重新发布数据。");
   if (!definitions || !definitions.parameters || !Array.isArray(definitions.metrics) || !Array.isArray(definitions.sources)) throw new Error("云端 definitions 快照结构不完整，请重新发布数据。");
+  const requiredParameters = ["idrPerCny", "matrixTrafficRatio", "matrixConversionRatio", "atcWeakRatio", "trafficSufficientRatio", "uvLowRatio", "taskDisplayLimit", "subsidyTrafficFloor", "subsidyCrCeiling", "subsidyAtcFloor", "subsidyMomentumFloor"];
+  if (requiredParameters.some(key => !Number.isFinite(Number(definitions.parameters[key])) || Number(definitions.parameters[key]) <= 0)) throw new Error("云端 definitions 参数不完整或无效，请重新发布数据。");
   const productIds = new Set();
   const invalid = module1.links.find(item => {
     const productId = String(item?.productId || "");
-    if (!productId || productIds.has(productId)) return true;
+    const numericFields = ["views", "visitors", "orders", "units", "sales", "atcRate", "mom"];
+    if (!productId || productIds.has(productId) || numericFields.some(key => item?.[key] !== "" && item?.[key] != null && !Number.isFinite(Number(item[key])))) return true;
     productIds.add(productId);
     return false;
   });
