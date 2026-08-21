@@ -17,6 +17,7 @@ const requiredFiles = [
   "scripts/import-competitor-links.mjs",
   "scripts/collect-competitor-snapshots.mjs",
   "scripts/publish-competitor-snapshots.mjs"
+  ,"scripts/competitor-bridge.mjs"
 ];
 
 for (const relativePath of requiredFiles) await access(resolve(root, relativePath));

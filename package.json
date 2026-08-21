@@ -8,7 +8,9 @@
     "validate": "node scripts/validate.mjs",
     "competitor:import": "node scripts/import-competitor-links.mjs",
     "competitor:collect": "node scripts/collect-competitor-snapshots.mjs",
-    "competitor:publish": "node scripts/publish-competitor-snapshots.mjs"
+    "competitor:publish": "node scripts/publish-competitor-snapshots.mjs",
+    "competitor:chrome": "powershell -ExecutionPolicy Bypass -File scripts/start-shopee-chrome.ps1",
+    "competitor:bridge": "node scripts/competitor-bridge.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"

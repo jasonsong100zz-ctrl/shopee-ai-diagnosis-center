@@ -51,6 +51,22 @@ npx playwright install chromium
 npm run competitor:collect -- --watchlist "tmp/competitor-watchlist.json" --out-dir "tmp/competitor-snapshots"
 ```
 
+## 使用已登录 Chrome 采集
+
+首次使用时启动独立 Chrome 配置并手动登录 Shopee：
+
+```powershell
+npm run competitor:chrome
+```
+
+Chrome 配置默认保存在 `%LOCALAPPDATA%\ShopeeCompetitorChrome`，不会使用日常 Chrome 配置。登录状态由 Chrome 配置目录持久化；采集器不读取或导出密码、Cookie。启动后运行：
+
+```powershell
+npm run competitor:collect -- --watchlist "tmp/competitor-watchlist.json" --out-dir "tmp/competitor-snapshots" --chrome-cdp-url "http://127.0.0.1:9222"
+```
+
+如果 Chrome 会话失效、出现登录页、验证码或流量验证，采集器记录失败并停止处理该商品，不会尝试绕过平台限制。电脑需要开机并保持该专用 Chrome 可连接。
+
 调试时可以限制条数并显示浏览器：
 
 ```powershell
@@ -89,3 +105,27 @@ npm run competitor:publish -- --snapshot "tmp/competitor-snapshots/2026-08-21.js
 采集器应保存公开可见的商品字段，并保留 `capture_status`、`error_message`、`source_url` 和内容哈希。页面累计已售的日变化只能作为销量代理，不得当作真实订单或 GMV。采集器不得绕过 CAPTCHA、登录、访问限制或 Shopee 平台规则。
 
 关键词排名不属于固定商品链接快照，必须另建关键词、市场、类目、排序方式和采集时间维度。
+
+## Chrome 扩展：人工启动监控
+
+如果 Shopee 对自动化访问触发流量验证，推荐使用 `chrome-extension` 目录的 Chrome 扩展。它复用当前已登录的 Chrome 页面，不读取或导出密码、Cookie；遇到登录、验证码或流量验证会暂停，用户人工处理后点击“验证后继续”。
+
+1. 在本机设置 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`、`COMPETITOR_WORKSPACE_ID`，启动 `npm run competitor:bridge`。
+2. Chrome 打开 `chrome://extensions`，开启“开发者模式”，点击“加载已解压的扩展程序”，选择本项目的 `chrome-extension` 文件夹。
+3. 点击扩展图标，确认清单 CSV 地址、桥地址和工作区 UUID，点击“开始监控”。
+4. 扩展逐条打开链接并采集；出现验证时人工处理，再点击“验证后继续”。
+
+服务密钥只保存在本机桥接进程环境变量，不进入扩展、不进入网页、不进入 GitHub。扩展只允许访问指定 Shopee 市场、Google Sheet CSV 和 `127.0.0.1:8787` 本地桥。
+
+## 给其他业务人员使用
+
+当前版本不是“只发一个 Sheet 链接就能使用”。每位业务人员首次需要完成一次本机配置：
+
+1. 安装 `chrome-extension` 扩展并在 Chrome 中重新加载。
+2. 准备一个自己有权限访问的 Google Sheet 链接；现在可以直接粘贴 `/edit?gid=0`、`/view?gid=0` 或 CSV 导出链接，扩展会自动转换为 CSV 地址。
+3. 启动本机桥接服务，并使用同一个 `COMPETITOR_WORKSPACE_ID`。扩展不会保存或读取 Chrome 密码、Cookie。
+4. 点击“开始监控”；面板会显示已读取数量、成功/失败数量。遇到 Shopee 验证时人工完成验证，再点“验证后继续”；结束后可点“重试失败”。
+
+当前桥接服务需要本机配置 Supabase Service Role Key，因此不应把现有桥接目录和密钥直接分发给多人。小范围试用可以由管理员为每台电脑配置受控环境；正式多人版应迁移到 Supabase Auth + Edge Function：扩展只使用用户登录态和 anon key，Edge Function 服务端保存 Service Role Key，并按用户所属 workspace 做 RLS 权限校验。这样业务人员最终才可以做到“安装扩展 + 粘贴清单链接 + 选择工作区”。
+
+建议清单维持稳定的列名：`品类`、`产品`、`竞对品牌`、`竞品链接`，并用 `enabled` 控制是否参与本次追踪。每次运行仅处理启用且链接格式有效的商品链接；页面可见的累计销量只能作为销量代理，不代表真实订单、GMV、流量或转化率。

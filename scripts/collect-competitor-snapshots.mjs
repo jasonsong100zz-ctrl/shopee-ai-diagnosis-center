@@ -207,11 +207,15 @@ async function collectPage(page, record, captureDate) {
     await page.goto(record.product_url, { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForTimeout(2500);
     const finalUrl = page.url();
-    if (!/-i\.\d+\.\d+/i.test(finalUrl)) {
+    if (!/-i\.\d+\.\d+/i.test(finalUrl) || /\/verify\/(?:traffic|captcha)/i.test(finalUrl)) {
       snapshot.error_message = `商品页被重定向或未公开可见，最终地址: ${finalUrl}`;
       return snapshot;
     }
     const bodyText = await page.locator("body").innerText({ timeout: 15000 });
+    if (/\b(?:login|log in|sign in|masuk)\b/i.test(bodyText) && !/\b(?:ratings?|sold|terjual)\b/i.test(bodyText)) {
+      snapshot.error_message = "当前 Chrome 会话未登录或商品页未公开可见";
+      return snapshot;
+    }
     const titleLocator = page.locator("h1").first();
     const title = await titleLocator.count() ? await titleLocator.innerText().catch(() => "") : "";
     const prices = extractMoneyTokens(bodyText);
@@ -255,13 +259,20 @@ const captureDate = option("--capture-date", utcDate());
 const limit = Number(option("--limit", "0"));
 const delayMilliseconds = Number(option("--delay-ms", "2500"));
 const headed = process.argv.includes("--headed");
+const chromeCdpUrl = option("--chrome-cdp-url") || process.env.CHROME_CDP_URL || null;
 const watchlist = JSON.parse(await readFile(watchlistPath, "utf8"));
 const records = (watchlist.records || []).filter((record) => record.enabled !== false && record.tracking_frequency === "daily");
 const selectedRecords = limit > 0 ? records.slice(0, limit) : records;
 await mkdir(outputDirectory, { recursive: true });
 
-const browser = await chromium.launch({ headless: !headed, executablePath: process.env.CHROME_BIN || undefined });
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, locale: "en-US" });
+const browser = chromeCdpUrl
+  ? await chromium.connectOverCDP(chromeCdpUrl)
+  : await chromium.launch({ headless: !headed, executablePath: process.env.CHROME_BIN || undefined });
+const context = chromeCdpUrl
+  ? browser.contexts()[0]
+  : await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: "en-US" });
+if (!context) throw new Error("Chrome CDP 未返回可用浏览器上下文");
+const page = await context.newPage();
 const snapshots = [];
 const events = [];
 
@@ -275,7 +286,9 @@ try {
     if (delayMilliseconds > 0) await sleep(delayMilliseconds);
   }
 } finally {
-  await browser.close();
+  await page.close();
+  if (!chromeCdpUrl) await browser.close();
+  else if (typeof browser.disconnect === "function") browser.disconnect();
 }
 
 const summary = {
