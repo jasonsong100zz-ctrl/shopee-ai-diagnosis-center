@@ -44,10 +44,28 @@ async function loadCloudDatasets() {
   if (error) throw error;
   const records = Object.fromEntries((data || []).map(row => [row.key, row]));
   if (records.dashboard && records.module1 && records.definitions) {
+    validateSnapshotRecords(records);
     return { dashboard: records.dashboard.payload, module1: records.module1.payload, definitions: records.definitions.payload, sourceMode: "cloud", snapshots: records };
   }
   if (!isLocal) throw new Error("云端数据尚未发布，请管理员先在本机进入 07 数据源 & 定义并发布当前数据。");
   return null;
+}
+
+function validateSnapshotRecords(records) {
+  const dashboard = records.dashboard?.payload;
+  const module1 = records.module1?.payload;
+  const definitions = records.definitions?.payload;
+  if (!dashboard || !Array.isArray(dashboard.workflows) || !Array.isArray(dashboard.sop)) throw new Error("云端 dashboard 快照结构不完整，请重新发布数据。");
+  if (!module1 || !Array.isArray(module1.links)) throw new Error("云端 module1 快照缺少链接数据，请重新发布数据。");
+  if (!definitions || !definitions.parameters || !Array.isArray(definitions.metrics) || !Array.isArray(definitions.sources)) throw new Error("云端 definitions 快照结构不完整，请重新发布数据。");
+  const productIds = new Set();
+  const invalid = module1.links.find(item => {
+    const productId = String(item?.productId || "");
+    if (!productId || productIds.has(productId)) return true;
+    productIds.add(productId);
+    return false;
+  });
+  if (invalid) throw new Error("云端链接数据存在缺少 Product ID 或重复 Product ID，请修复后重新发布。");
 }
 
 async function loadTaskStatuses() {
@@ -179,11 +197,12 @@ async function startApp(session, demo = false) {
   document.body.classList.remove("auth-pending");
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "./assets/dashboard-runtime.js?v=20260821";
+    script.src = "./assets/app.js?v=20260822";
     script.onload = resolve;
     script.onerror = () => reject(new Error("看板核心脚本加载失败，请刷新后重试。"));
     document.head.appendChild(script);
   });
+  await window.ShopeeDashboardReady;
   await decorateApp();
 }
 

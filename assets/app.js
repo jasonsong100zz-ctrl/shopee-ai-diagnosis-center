@@ -243,11 +243,16 @@ function renderListingFilters() {
 
 function prepareModule1Data() {
   const parameters = state.definitions.parameters;
+  state.module1.links ||= [];
+  state.module1.distributions ||= { shop: {}, pool: {}, matrix: {}, matchStatus: {} };
+  state.module1.distributions.shop ||= {};
+  state.module1.distributions.pool ||= {};
+  state.module1.distributions.matrix ||= {};
+  state.module1.distributions.matchStatus ||= {};
   state.module1.meta ||= {};
   state.module1.meta.currency ||= { display: "CNY" };
   state.module1.meta.currency.idrPerCny = parameters.idrPerCny;
-  Object.entries(state.sourcePatches).forEach(([productId, patch])
- => {
+  Object.entries(state.sourcePatches).forEach(([productId, patch]) => {
     const item = state.module1.links.find(link => String(link.productId) === String(productId));
     if (item) Object.assign(item, patch);
   });
@@ -477,7 +482,19 @@ function openDiagnosisDialog(linkId) {
       <article><span>件转化率</span><strong>${formatPercent(item.itemConversion, 2)}</strong><small>类目均值的 ${Math.round(item.benchmarks.itemConversionRatio * 100)}%</small></article>
     </div>
     <section><span class="detail-label">现状判断</span><p>${escapeHtml(reason)}</p></section>
-    <section class="ai-solution"><span class="detail-label">AI执行方案</span><p>${escapeHtml(item.action)}</p><ul><li>每次只调整一个核心变量，避免价格、主图和投流同时变化。</li><li>以7天为第一观察窗口，复盘访客、CR、件转化率和GMV变化。</li></ul></section>`;
+    <section class="ai-solution"><span class="detail-label">AI执行方案</span><p>${escapeHtml(item.action)}</p><ul><li>每次只调整一个核心变量，避免价格、主图和投流同时变化。</li><li>以7天为第一观察窗口，复盘访客、CR、件转化率和GMV变化。</li></ul></section><div class="dialog-actions"><button type="button" class="primary-button" id="createTaskFromDiagnosis">生成任务</button></div>`;
+  $("#createTaskFromDiagnosis").addEventListener("click", async () => {
+    const taskId = `link-${item.id}`;
+    try {
+      if (window.ShopeeCloud?.session) await window.ShopeeCloud.saveGeneratedTask(item, false);
+      else localStorage.setItem("shopee-ai-completed", JSON.stringify([...state.completedTasks].filter(id => id !== taskId)));
+      state.completedTasks.delete(taskId);
+      renderTasks();
+      showToast("诊断任务已生成");
+    } catch (error) {
+      showToast(`任务生成失败：${error.message}`);
+    }
+  });
   $("#diagnosisDialog").showModal();
 }
 
@@ -527,8 +544,7 @@ function renderTasks() {
   const score = item => (item.decision === "重点优化" ? 1e15 : 0) + (["单月下滑", "连续衰退"].includes(item.lifecycle) ? 5e14 : 0) + (item.matrix === "黑马宝藏款" ? 2e14 : 0) + item.sales;
   const definitions = [
     { id: "t1", title: "T1 核心保护", priority: "P0 · 今日", caption: "保排名 / 抢救下滑", test: item => item.tier === "T1" },
-    { id: "t2", title: "T2 腰
-部修复", priority: "P1 · 本周", caption: "修复浪费 / 稳定出货", test: item => item.tier === "T2" },
+    { id: "t2", title: "T2 腰部修复", priority: "P1 · 本周", caption: "修复浪费 / 稳定出货", test: item => item.tier === "T2" },
     { id: "t3", title: "T3 机会放大", priority: "P2 · 测试", caption: "只做黑马与增长款", test: item => item.tier === "T3" && (item.matrix === "黑马宝藏款" || item.lifecycle === "快速爆发") },
     { id: "t4new", title: "T4 / 新品治理", priority: "P3 · 治理", caption: "T4清退 / 新品孵化", test: item => item.tier === "T4" || item.pool === "新品池" }
   ];
@@ -740,8 +756,7 @@ function bindEvents() {
     state.listingPage = 1;
     renderListings();
   }));
-  $$(".sort-b
-utton").forEach(button => button.addEventListener("click", () => {
+  $$(".sort-button").forEach(button => button.addEventListener("click", () => {
     const key = button.dataset.sort;
     state.listingSort = state.listingSort.key === key
       ? { key, direction: state.listingSort.direction === "asc" ? "desc" : "asc" }
@@ -896,5 +911,5 @@ async function init() {
   }
 }
 
-init();
+window.ShopeeDashboardReady = init();
 
