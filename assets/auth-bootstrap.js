@@ -200,7 +200,7 @@ async function startApp(session, demo = false) {
   document.body.classList.remove("auth-pending");
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "./assets/app.js?v=20260822";
+    script.src = "./assets/app.js?v=20260823";
     script.onload = resolve;
     script.onerror = () => reject(new Error("看板核心脚本加载失败，请刷新后重试。"));
     document.head.appendChild(script);
