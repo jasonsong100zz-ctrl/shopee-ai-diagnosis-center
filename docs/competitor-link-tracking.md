@@ -130,7 +130,7 @@ npm run competitor:publish -- --snapshot "tmp/competitor-snapshots/2026-08-21.js
 
 CSV 业务结果表固定保留：`采集日期`、`品类`、`产品`、`竞对品牌`、`市场`、`商品链接`、`店铺ID`、`商品ID`、`商品标题`、`当前价格`、`原价`、`折扣率`、`币种`、`最低SKU价格`、`最高SKU价格`、`SKU名称`、`SKU价格明细`、`库存状态`、`累计已售代理值`、`评分`、`评论数`、`促销摘要`、`优惠券`、`配送摘要`、`采集状态`、`失败原因`。
 
-扩展优先读取商品页已公开加载的内嵌状态数据，一次性获取 SKU 名称、`model_id`、库存和规格，不自动连续点击 SKU。若页面没有提供每个 SKU 的价格，`SKU价格明细`会标记为“需选择确认”，不会把当前选中 SKU 的价格冒充所有 SKU 的价格。商品描述、商品规格、店铺指标、售后政策、图片/视频数量、评论分布、哈希和原始页面数据继续保存在快照 `raw_payload` 中，不进入业务 CSV 主表。
+扩展优先读取商品页已公开加载的内嵌状态数据，并在页面正常发出 PDP 请求时观察该请求的响应，一次性获取 SKU 名称、`model_id`、库存和 `price`/`priceLocal`，不自动连续点击 SKU、不主动重放 Shopee 接口。若页面没有提供每个 SKU 的价格，`SKU价格明细`会标记为“价格未完整提供”，且最低/最高 SKU 价格留空，不会把当前选中 SKU 的价格冒充所有 SKU 的价格；只有全部 SKU 价格都可验证时才计算最低价和最高价。快照会记录 `model_price_source`，区分 `page_network_response`、`embedded_page_state` 和 `current_page_only`。商品描述、商品规格、店铺指标、售后政策、图片/视频数量、评论分布、哈希和原始页面数据继续保存在快照 `raw_payload` 中，不进入业务 CSV 主表。
 
 当前桥接服务需要本机配置 Supabase Service Role Key，因此不应把现有桥接目录和密钥直接分发给多人。小范围试用可以由管理员为每台电脑配置受控环境；正式多人版应迁移到 Supabase Auth + Edge Function：扩展只使用用户登录态和 anon key，Edge Function 服务端保存 Service Role Key，并按用户所属 workspace 做 RLS 权限校验。这样业务人员最终才可以做到“安装扩展 + 粘贴清单链接 + 选择工作区”。
 
