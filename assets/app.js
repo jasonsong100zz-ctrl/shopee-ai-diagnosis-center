@@ -1313,7 +1313,7 @@ function periodUnifiedIssues() {
       { name: "访客", current: currentVisitors, compare: compareVisitors, delta: metrics.visitorDelta }
     ] };
   }).filter(issue => issue.lost > 0 || issue.status === "removed").sort((a, b) => b.lost - a.lost);
-  return links.map((issue, index) => ({ ...issue, rank: index + 1, priority: issue.impactShare >= .05 ? "P0" : issue.impactShare >= .015 ? "P1" : "P2" }));
+  return links.map((issue, index) => ({ ...issue, rank: index + 1, priority: issue.impactShare >= .02 ? "P0" : issue.impactShare >= .005 ? "P1" : "P2" }));
 }
 
 function periodHomeMetricCards() {
