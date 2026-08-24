@@ -165,7 +165,9 @@ def livestream_period(path):
         })
     return {"label": period_label(sheets, path.stem), "rows": sorted(rows, key=lambda row: row.get("netSalesIdr") or 0, reverse=True)}
 
-def compact(module, limit=140):
+def compact(module, limit=None):
+    if limit is None:
+        return module
     current = module["current"]["rows"]
     compare = module["compare"]["rows"]
     ids = {row["productId"] for row in current[:limit]} | {row["productId"] for row in compare[:limit]}
