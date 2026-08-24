@@ -33,6 +33,7 @@
             <div class="nav-subgroup"><a href="#chat-04"><span>板块 4</span>客服与竞品</a></div>
             <div class="nav-subgroup"><a href="#chat-05"><span>板块 5</span>主控与 SOP</a><a class="nav-deep-link" href="#tasks">任务与复盘</a><a class="nav-deep-link" href="#sop">SOP 与模板</a></div>
           </div>
+          <a class="nav-item" href="#period-analysis"><span>06</span>周期诊断</a>
           <a class="nav-item" href="#subsidy"><span>03</span>补贴分配</a>
           <a class="nav-item" href="#data-governance"><span>07</span>数据源 & 定义</a>
         </nav>
@@ -85,6 +86,42 @@
             <p>主控只负责入口与检查；具体诊断进入板块 1–5 的细分模块。</p>
           </div>
           <div class="workflow-grid" id="workflowGrid"></div>
+        </section>
+
+        <section class="section period-analysis-section" id="period-analysis" data-route="period-analysis" hidden>
+          <div class="section-heading">
+            <div><span class="kicker">PERIOD DIAGNOSIS · CURRENT VS COMPARISON</span><h2>周期诊断中心</h2></div>
+            <p>按板块上传本次周期与对比周期，系统只做这两个周期的环比比较；不强制日、周、月口径。</p>
+          </div>
+          <div class="period-toolbar">
+            <div><strong>先上传，再诊断</strong><span>支持 Shopee 原始 XLSX；每个板块必须同时具备两份周期文件。</span></div>
+            <div class="period-toolbar-actions"><button class="ghost-button" id="clearPeriodAnalysis" type="button">清除本机周期数据</button><button class="primary-button" id="loadPeriodDemo" type="button">加载真实数据 Demo</button></div>
+          </div>
+          <div class="period-upload-grid" id="periodUploadGrid">
+            <article class="period-upload-card" data-period-module="product">
+              <div class="period-upload-head"><div><span>01 · PRODUCT & MODEL</span><h3>商品 & Model 销售</h3></div><b class="period-status" data-period-status="product">未上传</b></div>
+              <p>Product Performance：商品层 + SKU / Model 层。用于发现流量、成交、加购、库存和 Model 有效性问题。</p>
+              <div class="period-file-row"><label><span>本次周期</span><input id="periodProductCurrent" data-period-file="product.current" type="file" accept=".xlsx,.xls" /><em data-period-file-name="product.current">未选择文件</em></label><label><span>对比周期</span><input id="periodProductCompare" data-period-file="product.compare" type="file" accept=".xlsx,.xls" /><em data-period-file-name="product.compare">未选择文件</em></label></div>
+              <small class="period-file-hint">必需 Sheet：Product Performance Item Level、Product Performance SKU Level</small>
+            </article>
+            <article class="period-upload-card" data-period-module="ads">
+              <div class="period-upload-head"><div><span>02 · PRODUCT ADS</span><h3>产品广告</h3></div><b class="period-status" data-period-status="ads">未上传</b></div>
+              <p>On-platform Ads Product Ads Performance：只使用广告归因 Gross Sales，不与店铺净销售或 AMS ROI 混用。</p>
+              <div class="period-file-row"><label><span>本次周期</span><input id="periodAdsCurrent" data-period-file="ads.current" type="file" accept=".xlsx,.xls" /><em data-period-file-name="ads.current">未选择文件</em></label><label><span>对比周期</span><input id="periodAdsCompare" data-period-file="ads.compare" type="file" accept=".xlsx,.xls" /><em data-period-file-name="ads.compare">未选择文件</em></label></div>
+              <small class="period-file-hint">必需 Sheet：By Product；Orders / Sales 为点击后 7 天广告归因</small>
+            </article>
+            <article class="period-upload-card" data-period-module="livestream">
+              <div class="period-upload-head"><div><span>03 · PRODUCT LIVESTREAM</span><h3>产品直播</h3></div><b class="period-status" data-period-status="livestream">未上传</b></div>
+              <p>Livestream Product Performance：拆开 Gross / Net Sales，诊断直播商品的加购、成交、退款或取消影响。</p>
+              <div class="period-file-row"><label><span>本次周期</span><input id="periodLivestreamCurrent" data-period-file="livestream.current" type="file" accept=".xlsx,.xls" /><em data-period-file-name="livestream.current">未选择文件</em></label><label><span>对比周期</span><input id="periodLivestreamCompare" data-period-file="livestream.compare" type="file" accept=".xlsx,.xls" /><em data-period-file-name="livestream.compare">未选择文件</em></label></div>
+              <small class="period-file-hint">必需 Sheet：By Product；当前数据源没有场次 / 主播维度，不生成场次结论</small>
+            </article>
+          </div>
+          <div class="period-analysis-status" id="periodAnalysisStatus"></div>
+          <div class="period-tabs" id="periodModuleTabs" role="tablist" aria-label="周期诊断板块"></div>
+          <div class="period-summary" id="periodSummary"></div>
+          <div class="period-diagnosis-layout"><section class="period-insights" id="periodInsights"></section><section class="period-products"><div class="period-products-head"><div><span>PRODUCT RANKING</span><h3>商品环比变化</h3></div><small>点击商品查看 Model 下钻</small></div><div class="period-table-wrap"><table class="period-table"><thead id="periodTableHead"></thead><tbody id="periodTableBody"></tbody></table></div></section></div>
+          <p class="period-disclaimer">事实来自上传文件的字段对比；诊断是规则推断；“待验证猜想”需要运营结合价格、库存、优惠券、内容和标题数据确认。数据不足时不判定 Model 无效。</p>
         </section>
 
         <section class="section subsidy-section" id="subsidy" data-route="subsidy" hidden>
@@ -234,7 +271,7 @@
     <input id="module1FileInput" type="file" accept=".csv,text/csv" hidden />
     <input id="definitionsFileInput" type="file" accept=".csv,text/csv" hidden />
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="assets/auth-bootstrap.js?v=20260823"></script>
+    <script type="module" src="assets/auth-bootstrap.js?v=20260824"></script>
   </body>
 </html>
 

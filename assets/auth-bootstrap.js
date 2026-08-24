@@ -40,12 +40,12 @@ async function loadProfile(user) {
 }
 
 async function loadCloudDatasets() {
-  const { data, error } = await supabase.from("app_snapshots").select("key,payload,source_version,updated_at").in("key", ["dashboard", "module1", "definitions"]);
+  const { data, error } = await supabase.from("app_snapshots").select("key,payload,source_version,updated_at").in("key", ["dashboard", "module1", "definitions", "sourceFacts"]);
   if (error) throw error;
   const records = Object.fromEntries((data || []).map(row => [row.key, row]));
   if (records.dashboard && records.module1 && records.definitions) {
     validateSnapshotRecords(records);
-    return { dashboard: records.dashboard.payload, module1: records.module1.payload, definitions: records.definitions.payload, sourceMode: "cloud", snapshots: records };
+    return { dashboard: records.dashboard.payload, module1: records.module1.payload, definitions: records.definitions.payload, sourceFacts: records.sourceFacts?.payload || null, sourceMode: "cloud", snapshots: records };
   }
   if (!isLocal) throw new Error("云端数据尚未发布，请管理员先在本机进入 07 数据源 & 定义并发布当前数据。");
   return null;
@@ -58,6 +58,8 @@ function validateSnapshotRecords(records) {
   if (!dashboard || !Array.isArray(dashboard.workflows) || !Array.isArray(dashboard.sop)) throw new Error("云端 dashboard 快照结构不完整，请重新发布数据。");
   if (!module1 || !Array.isArray(module1.links)) throw new Error("云端 module1 快照缺少链接数据，请重新发布数据。");
   if (!definitions || !definitions.parameters || !Array.isArray(definitions.metrics) || !Array.isArray(definitions.sources)) throw new Error("云端 definitions 快照结构不完整，请重新发布数据。");
+  const sourceFacts = records.sourceFacts?.payload;
+  if (sourceFacts?.periodAnalysis && (!sourceFacts.periodAnalysis.modules || typeof sourceFacts.periodAnalysis.modules !== "object")) throw new Error("云端 sourceFacts 周期分析结构不完整，请重新发布数据。");
   const requiredParameters = ["idrPerCny", "matrixTrafficRatio", "matrixConversionRatio", "atcWeakRatio", "trafficSufficientRatio", "uvLowRatio", "taskDisplayLimit", "subsidyTrafficFloor", "subsidyCrCeiling", "subsidyAtcFloor", "subsidyMomentumFloor"];
   if (requiredParameters.some(key => !Number.isFinite(Number(definitions.parameters[key])) || Number(definitions.parameters[key]) <= 0)) throw new Error("云端 definitions 参数不完整或无效，请重新发布数据。");
   const productIds = new Set();
@@ -98,7 +100,8 @@ async function publishSnapshots(snapshot) {
   const rows = [
     { key: "dashboard", payload: snapshot.dashboard, source_version: snapshot.version },
     { key: "module1", payload: snapshot.module1, source_version: snapshot.version },
-    { key: "definitions", payload: snapshot.definitions, source_version: snapshot.version }
+    { key: "definitions", payload: snapshot.definitions, source_version: snapshot.version },
+    { key: "sourceFacts", payload: snapshot.sourceFacts || null, source_version: snapshot.version }
   ];
   const { error } = await supabase.from("app_snapshots").upsert(rows, { onConflict: "key" });
   if (error) throw error;
@@ -200,7 +203,7 @@ async function startApp(session, demo = false) {
   document.body.classList.remove("auth-pending");
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "./assets/app.js?v=20260823";
+    script.src = "./assets/app.js?v=20260824";
     script.onload = resolve;
     script.onerror = () => reject(new Error("看板核心脚本加载失败，请刷新后重试。"));
     document.head.appendChild(script);
