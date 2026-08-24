@@ -1188,37 +1188,128 @@ function periodIssueFromRows(moduleKey, key, title, rows, fields, conclusion, hy
   return { id: `${moduleKey}-${key}`, moduleKey, source: PERIOD_MODULES[moduleKey].label, priority: periodIssuePriority(score, impactShare, severity), title, key, impactAmount, impactShare, severity, affectedRows: rows, affectedCount: rows.length, conclusion, hypothesis, action, verification, evidence: rows.slice(0, 4).map(row => ({ name: row.current?.shortName || row.current?.name || row.compare?.shortName || row.compare?.name || "未命名商品", productId: row.productId, delta: row.delta })) };
 }
 
+function periodRatio(value, base) {
+  return Number(base) ? Number(value || 0) / Number(base) : null;
+}
+
+function periodLinkModels(row) {
+  return new Map((row?.models || []).map(model => [periodId(model.modelId) || model.variation, model]));
+}
+
+function periodModelDiagnosis(current, compare) {
+  const currentModels = periodLinkModels(current);
+  const compareModels = periodLinkModels(compare);
+  const ids = new Set([...currentModels.keys(), ...compareModels.keys()]);
+  return [...ids].map(modelId => {
+    const currentModel = currentModels.get(modelId) || null;
+    const compareModel = compareModels.get(modelId) || null;
+    const currentUnits = Number(currentModel?.units) || 0;
+    const compareUnits = Number(compareModel?.units) || 0;
+    const currentSales = Number(currentModel?.salesIdr) || 0;
+    const compareSales = Number(compareModel?.salesIdr) || 0;
+    return {
+      modelId,
+      current: currentModel,
+      compare: compareModel,
+      name: currentModel?.variation || compareModel?.variation || "未命名 Model",
+      salesLost: Math.max(0, compareSales - currentSales),
+      salesDelta: periodDelta(currentSales, compareSales),
+      unitsDelta: periodDelta(currentUnits, compareUnits),
+      aspCurrent: periodRatio(currentSales, currentUnits),
+      aspCompare: periodRatio(compareSales, compareUnits)
+    };
+  }).sort((a, b) => b.salesLost - a.salesLost);
+}
+
+function periodAdSignal(current, compare) {
+  if (!current && !compare) return { status: "missing", label: "未接入广告数据", kind: "missing" };
+  const spendCurrent = Number(current?.spendIdr) || 0;
+  const spendCompare = Number(compare?.spendIdr) || 0;
+  const spendDelta = periodDelta(spendCurrent, spendCompare);
+  const clicksDelta = periodDelta(current?.clicks, compare?.clicks);
+  const impressionsDelta = periodDelta(current?.impressions, compare?.impressions);
+  const roasDelta = periodDelta(current?.roas, compare?.roas);
+  const crDelta = periodDelta(current?.cr, compare?.cr);
+  if (spendCompare > 0 && spendCurrent === 0) return { status: "signal", label: "本期无广告消耗 · 疑似停投", kind: "coverage", spendDelta, clicksDelta, impressionsDelta, roasDelta, crDelta };
+  if (spendDelta != null && spendDelta < -.3 && (clicksDelta == null || clicksDelta < -.2)) return { status: "signal", label: "广告覆盖收缩", kind: "coverage", spendDelta, clicksDelta, impressionsDelta, roasDelta, crDelta };
+  if (spendDelta != null && spendDelta > .1 && roasDelta != null && roasDelta < -.1) return { status: "signal", label: "广告效率恶化", kind: "efficiency", spendDelta, clicksDelta, impressionsDelta, roasDelta, crDelta };
+  if (crDelta != null && crDelta < -.1) return { status: "signal", label: "广告点击后承接变弱", kind: "conversion", spendDelta, clicksDelta, impressionsDelta, roasDelta, crDelta };
+  return { status: "observed", label: "广告未见明显异常", kind: "normal", spendDelta, clicksDelta, impressionsDelta, roasDelta, crDelta };
+}
+
+function periodLiveSignal(current, compare) {
+  if (!current && !compare) return { status: "missing", label: "未接入直播数据", kind: "missing" };
+  const netDelta = periodDelta(current?.netSalesIdr, compare?.netSalesIdr);
+  const atcDelta = periodDelta(current?.atc, compare?.atc);
+  const ordersDelta = periodDelta(current?.orders, compare?.orders);
+  const grossDelta = periodDelta(current?.grossSalesIdr, compare?.grossSalesIdr);
+  const buyerDelta = periodDelta(current?.buyers, compare?.buyers);
+  if (atcDelta != null && atcDelta > .1 && ordersDelta != null && ordersDelta < -.1) return { status: "signal", label: "直播加购增长但成交承接下降", kind: "conversion", netDelta, atcDelta, ordersDelta, grossDelta, buyerDelta };
+  if (grossDelta != null && grossDelta > .1 && netDelta != null && netDelta < 0) return { status: "signal", label: "直播 Gross 增长但 Net 下滑", kind: "net", netDelta, atcDelta, ordersDelta, grossDelta, buyerDelta };
+  if (netDelta != null && netDelta < -.1 && (atcDelta == null || atcDelta < 0)) return { status: "signal", label: "直播商品产出下降", kind: "traffic", netDelta, atcDelta, ordersDelta, grossDelta, buyerDelta };
+  return { status: "observed", label: "直播未见明显异常", kind: "normal", netDelta, atcDelta, ordersDelta, grossDelta, buyerDelta };
+}
+
+function periodLinkCause(metrics, adSignal, liveSignal) {
+  if (metrics.current == null) return { type: "链接消失", title: "本期无销售", conclusion: "对比期有销售，但本期没有商品销售记录，先确认链接状态、库存和是否仍在售。", hypothesis: "可能是下架、缺货、数据过滤或链接经营状态变化；当前数据不能直接确认具体原因。", action: "先确认链接是否在售、主推 Model 是否有库存，再检查广告计划和活动状态。", verification: "链接可售状态、库存、订单、净销售额" };
+  if (metrics.visitorDelta != null && metrics.visitorDelta < -.1 && adSignal.kind === "coverage") return { type: "流量 / 广告覆盖", title: "访客下降，广告覆盖同步收缩", conclusion: "这条链接的销售下滑首先表现为流量收缩，广告覆盖减少可能是重要渠道信号。", hypothesis: "报表显示广告消耗或点击减少，但缺少计划状态和预算变更，不能直接确认是停投还是预算不足。", action: "确认广告计划是否暂停、预算是否耗尽；同时检查自然流量入口，暂不直接改价格。", verification: "商品访客、广告曝光、点击、广告花费、净订单" };
+  if (metrics.aspDelta != null && metrics.aspDelta < -.08 && (metrics.unitsDelta == null || metrics.unitsDelta < .05)) return { type: "件单价", title: "件单价下降，销售结构需要核对", conclusion: "这条链接的 GMV 下滑有明显件单价下降贡献，需先核对价格、优惠和低价 Model 结构。", hypothesis: "件单价变化可能来自实际到手价、优惠券或销售规格结构变化，当前没有价格历史，不能直接确认标价变化。", action: "核对本期与对比期售价、券后价、活动价，并检查低价 Model 是否占比上升。", verification: "件单价、销量、券后价、各 Model 销售占比" };
+  if ((metrics.atcToOrderDelta != null && metrics.atcToOrderDelta < -.1) || (metrics.visitorDelta != null && metrics.visitorDelta >= -.05 && metrics.orderRateDelta != null && metrics.orderRateDelta < -.1)) return { type: "商品承接", title: "流量仍在，但商品成交承接下降", conclusion: "这条链接的主要断点在访客到订单之间，用户仍在进入商品页，但没有转化为成交。", hypothesis: "可能与券后价、库存、主推 Model、运费或结算体验有关；当前数据不能单独确认具体原因。", action: "优先核对券后价、主推 Model 可售状态、库存和结算可用性，再决定是否扩大流量。", verification: "订单转化率、加购到订单转化率、订单、净销售额" };
+  if (metrics.coverageDelta != null && metrics.coverageDelta < -.2) return { type: "库存 / Model", title: "库存覆盖下降，可能限制成交", conclusion: "销售下滑同时伴随库存覆盖收缩，需要确认主推 Model 是否已经影响可购买性。", hypothesis: "库存约束可能先影响主推规格，再传导到订单和 GMV；当前数据没有完整缺货原因。", action: "按 Model 检查库存、覆盖天数和主推规格，制定补货或替代规格方案。", verification: "Model 库存、覆盖天数、缺货率、订单" };
+  if (liveSignal.kind === "conversion") return { type: "直播承接", title: "直播有兴趣，但成交承接下降", conclusion: "商品整体销售下滑同时，直播加购没有转化为订单，直播渠道存在承接断点。", hypothesis: "可能与直播讲解、规格引导、优惠配置或库存有关；当前商品报表没有场次和主播维度。", action: "回看该商品直播讲解与优惠配置，核对主推 Model 可售状态，不先归因到主播。", verification: "直播加购到订单转化率、直播订单、直播净销售额" };
+  return { type: "待拆解", title: "商品销售下滑，需继续拆解", conclusion: "这条链接出现明显 GMV 掉量，但现有指标没有形成单一断点，需要结合品类和渠道信号继续核查。", hypothesis: "可能由流量、件单价、商品承接、库存或渠道结构共同造成。", action: "先按销售链路核对访客、加购、订单、件单价，再查看广告和直播信号。", verification: "访客、订单转化率、件单价、广告点击、直播订单" };
+}
+
 function periodUnifiedIssues() {
-  const issues = [];
-  ["product", "ads", "livestream"].forEach(moduleKey => {
-    if (periodStatus(moduleKey) !== "ready") return;
-    const rows = periodCompareRows(moduleKey);
-    if (moduleKey === "product") {
-      const funnelRows = rows.filter(row => row.status === "matched" && row.delta != null && row.delta < -.1 && (periodDelta(row.current.visitors, row.compare.visitors) ?? -1) >= -.05);
-      if (funnelRows.length) issues.push(periodIssueFromRows(moduleKey, "traffic-stable-conversion-down", "流量基本稳定，但商品成交承接下降", funnelRows, { current: "netSalesIdr" }, "用户仍然进入商品页，但销售结果没有跟上流量，优先排查下单承接。", "可能与价格、优惠券、规格库存、运费或结算环节有关；当前文件不能单独确认原因。", "抽查受影响商品的券后价、主推 Model 库存和商品页价格承诺，做单变量修复。", "订单转化率、加购到订单转化率、净订单、净销售额", .24));
-      const trafficRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.visitors, row.compare.visitors) ?? 0) < -.1);
-      if (trafficRows.length) issues.push(periodIssueFromRows(moduleKey, "traffic-down", "商品访客下降，流量入口需要定位", trafficRows, { current: "netSalesIdr" }, "本次商品流量收缩，是经营结果下滑的重要信号。", "可能与标题点击率、搜索词、活动资源或广告引流变化有关。", "按商品和店铺拆访客下降 Top 20，再结合广告和热搜词数据定位入口。", "访客、曝光、CTR、商品点击、订单转化率", .18));
-      const atcRows = rows.filter(row => row.status === "matched" && row.current.atc > row.current.netOrders * 1.5 && (periodDelta(row.current.netOrders, row.compare.netOrders) ?? 0) < -.1);
-      if (atcRows.length) issues.push(periodIssueFromRows(moduleKey, "atc-up-orders-down", "加购增加但订单下降，结算承接存在阻力", atcRows, { current: "netSalesIdr" }, "购买意向存在，但从加购到下单的转化变弱。", "可能是优惠券门槛、规格库存、价格、运费或结算体验问题。", "先检查加购最高的商品和 Model，核对券后价、库存与结算可用性。", "加购到订单转化率、订单、净销售额、缺货率", .22));
-      const stockRows = rows.filter(row => row.status === "matched" && row.current.coverage != null && row.compare.coverage != null && row.current.coverage < row.compare.coverage * .8 && row.current.netOrders > 0);
-      if (stockRows.length) issues.push(periodIssueFromRows(moduleKey, "coverage-down", "高需求商品库存覆盖下降，存在供给风险", stockRows, { current: "netSalesIdr" }, "销售需求存在，但库存覆盖天数正在收缩。", "若主推 Model 继续销售，库存约束可能在后续周期传导到订单。", "对受影响商品补充库存覆盖预警和 Model 补货计划，不直接停投。", "覆盖天数、缺货率、订单、净销售额", .13));
-    } else if (moduleKey === "ads") {
-      const efficiencyRows = rows.filter(row => row.status === "matched" && row.current.spendIdr > row.compare.spendIdr * 1.1 && row.current.roas != null && row.compare.roas != null && row.current.roas < row.compare.roas * .9);
-      if (efficiencyRows.length) issues.push(periodIssueFromRows(moduleKey, "spend-up-roas-down", "广告花费增加，但广告效率下降", efficiencyRows, { current: "spendIdr", compare: "spendIdr", mode: "spend" }, "扩量没有带来等比例的广告归因销售增长，边际效率正在恶化。", "可能扩展到低相关词，或点击后的商品页承接变弱；没有毛利数据，不能直接称为亏损。", "按花费增量拆商品和关键词，先控制低效增量，再核对素材、词和商品页。", "Ads Spend、广告归因 Gross Sales、ROAS、点击后 CR", .25));
-      const ctrRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.ctr, row.compare.ctr) ?? 0) < -.1);
-      if (ctrRows.length) issues.push(periodIssueFromRows(moduleKey, "ctr-down", "广告点击率下降，点击前承诺需要复核", ctrRows, { current: "salesIdr" }, "曝光转化为点击的效率走弱，问题优先发生在点击前。", "标题、主图、价格展示或关键词相关性可能不足。", "保持预算基本不变，做标题或主图单变量测试，观察 CTR 和点击后 CR。", "Impressions、CTR、Clicks、点击后 CR", .15));
-      const crRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.cr, row.compare.cr) ?? 0) < -.1);
-      if (crRows.length) issues.push(periodIssueFromRows(moduleKey, "post-click-cr-down", "广告点击增加，但点击后转化下降", crRows, { current: "salesIdr" }, "用户已经点击广告，但商品承接没有转成订单。", "可能与价格、优惠券、库存或主推 Model 不匹配有关。", "对点击增长且 CR 下滑商品核对券、价格、库存和落地页。", "Clicks、Orders、点击后 CR、广告归因销售", .18));
-    } else {
-      const handoffRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.atc, row.compare.atc) ?? 0) > .1 && (periodDelta(row.current.orders, row.compare.orders) ?? 0) < -.1);
-      if (handoffRows.length) issues.push(periodIssueFromRows(moduleKey, "atc-up-orders-down", "直播加购增长，但订单没有同步增长", handoffRows, { current: "netSalesIdr" }, "直播间存在商品兴趣，但从加购到下单的承接变弱。", "可能与讲解、规格引导、优惠券、价格或库存有关；当前数据没有场次和主播维度。", "回看受影响商品的讲解与优惠，逐个核对主推 Model 可售库存。", "ATC、Orders、加购到订单转化率、直播净销售额", .22));
-      const netGapRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.grossSalesIdr, row.compare.grossSalesIdr) ?? 0) > .1 && (periodDelta(row.current.netSalesIdr, row.compare.netSalesIdr) ?? 0) < 0);
-      if (netGapRows.length) issues.push(periodIssueFromRows(moduleKey, "gross-up-net-down", "直播 Gross Sales 增长，但 Net Sales 下滑", netGapRows, { current: "netSalesIdr" }, "直播表面成交增长没有转化为净销售，Gross 与 Net 的差额需要核对。", "可能来自退款、取消或平台净额处理，不能直接视为直播增长。", "按商品核对退款、取消明细和售后周期，确认净销售下降原因。", "Gross Sales、Net Sales、退款、取消、订单", .2));
-      const buyerRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.buyers, row.compare.buyers) ?? 0) > .1 && (periodDelta(row.current.netSalesIdr, row.compare.netSalesIdr) ?? 0) < .05);
-      if (buyerRows.length) issues.push(periodIssueFromRows(moduleKey, "buyers-up-sales-flat", "直播买家增长，但净销售没有同步增长", buyerRows, { current: "netSalesIdr" }, "新增买家没有带来等比例的净销售增长，商品结构或客单贡献偏弱。", "可能是低价商品占比提升，或连带购与高价值商品承接不足。", "拆买家增长商品的订单、件数与净销售，优化直播主推组合。", "Buyers、Orders、Units、Net Sales、客单价", .12));
-    }
-  });
-  return issues.sort((a, b) => (b.impactAmount - a.impactAmount) || (b.severity - a.severity)).map((issue, index) => ({ ...issue, rank: index + 1 }));
+  if (periodStatus("product") !== "ready") return [];
+  const adsCurrent = periodRowMap("ads", "current");
+  const adsCompare = periodRowMap("ads", "compare");
+  const liveCurrentMap = periodRowMap("livestream", "current");
+  const liveCompareMap = periodRowMap("livestream", "compare");
+  const productTotal = periodTotals("product", "compare").primary || 1;
+  const links = periodCompareRows("product").map(row => {
+    const current = row.current;
+    const compare = row.compare;
+    const currentSales = Number(current?.netSalesIdr) || 0;
+    const compareSales = Number(compare?.netSalesIdr) || 0;
+    const currentUnits = Number(current?.netUnits) || 0;
+    const compareUnits = Number(compare?.netUnits) || 0;
+    const currentOrders = Number(current?.netOrders) || 0;
+    const compareOrders = Number(compare?.netOrders) || 0;
+    const currentVisitors = Number(current?.visitors) || 0;
+    const compareVisitors = Number(compare?.visitors) || 0;
+    const currentAtc = Number(current?.atc) || 0;
+    const compareAtc = Number(compare?.atc) || 0;
+    const currentAsp = periodRatio(currentSales, currentUnits);
+    const compareAsp = periodRatio(compareSales, compareUnits);
+    const currentOrderRate = periodRatio(currentOrders, currentVisitors);
+    const compareOrderRate = periodRatio(compareOrders, compareVisitors);
+    const currentAtcToOrder = periodRatio(currentOrders, currentAtc);
+    const compareAtcToOrder = periodRatio(compareOrders, compareAtc);
+    const coverageDelta = periodDelta(current?.coverage, compare?.coverage);
+    const metrics = {
+      current, compare, currentSales, compareSales, currentUnits, compareUnits, currentOrders, compareOrders, currentVisitors, compareVisitors, currentAtc, compareAtc, currentAsp, compareAsp,
+      salesDelta: periodDelta(currentSales, compareSales), unitsDelta: periodDelta(currentUnits, compareUnits), visitorDelta: periodDelta(currentVisitors, compareVisitors), orderRateDelta: periodDelta(currentOrderRate, compareOrderRate), atcToOrderDelta: periodDelta(currentAtcToOrder, compareAtcToOrder), aspDelta: periodDelta(currentAsp, compareAsp), coverageDelta
+    };
+    const adCurrent = adsCurrent.get(row.productId) || null;
+    const adCompare = adsCompare.get(row.productId) || null;
+    const liveCurrent = liveCurrentMap.get(row.productId) || null;
+    const liveCompare = liveCompareMap.get(row.productId) || null;
+    const ad = { ...periodAdSignal(adCurrent, adCompare), current: adCurrent, compare: adCompare };
+    const live = { ...periodLiveSignal(liveCurrent, liveCompare), current: liveCurrent, compare: liveCompare };
+    const cause = periodLinkCause(metrics, ad, live);
+    const lost = Math.max(0, compareSales - currentSales);
+    const priceImpact = currentUnits * ((currentAsp || 0) - (compareAsp || 0));
+    const volumeImpact = (currentUnits - compareUnits) * (compareAsp || 0);
+    const category = current?.category || compare?.category || "未归类";
+    return { id: `product-link-${row.productId}`, moduleKey: "product", source: "商品 & Model 销售", rank: 0, priority: "P2", productId: row.productId, category, shortName: current?.shortName || compare?.shortName || "未命名商品", originalName: current?.originalName || compare?.originalName || current?.name || compare?.name || "未命名商品", current, compare, status: row.status, impactAmount: lost, impactShare: lost / productTotal, lost, metrics, ad, live, cause, title: `${current?.shortName || compare?.shortName || "未命名商品"} · ${cause.title}`, conclusion: cause.conclusion, hypothesis: cause.hypothesis, action: cause.action, verification: cause.verification, modelRows: periodModelDiagnosis(current, compare), priceImpact, volumeImpact, affectedRows: [row], affectedCount: 1, evidence: [
+      { name: "GMV", current: currentSales, compare: compareSales, delta: metrics.salesDelta },
+      { name: "销量", current: currentUnits, compare: compareUnits, delta: metrics.unitsDelta },
+      { name: "件单价", current: currentAsp, compare: compareAsp, delta: metrics.aspDelta },
+      { name: "访客", current: currentVisitors, compare: compareVisitors, delta: metrics.visitorDelta }
+    ] };
+  }).filter(issue => issue.lost > 0 || issue.status === "removed").sort((a, b) => b.lost - a.lost);
+  return links.map((issue, index) => ({ ...issue, rank: index + 1, priority: issue.impactShare >= .05 ? "P0" : issue.impactShare >= .015 ? "P1" : "P2" }));
 }
 
 function periodHomeMetricCards() {
@@ -1226,11 +1317,13 @@ function periodHomeMetricCards() {
   if (!productReady) return "";
   const current = periodTotals("product", "current");
   const compare = periodTotals("product", "compare");
+  const issues = periodUnifiedIssues();
+  const lost = issues.reduce((sum, issue) => sum + issue.lost, 0);
   const cards = [
     ["净销售额", periodFormatMoney(current.primary), periodChangeText(periodDelta(current.primary, compare.primary)), "商品销售主结果"],
     ["净订单", periodFormatNumber(current.netOrders), periodChangeText(periodDelta(current.netOrders, compare.netOrders)), "商品销售主结果"],
     ["商品访客", periodFormatNumber(current.visitors), periodChangeText(periodDelta(current.visitors, compare.visitors)), "商品销售主结果"],
-    ["P0 问题", String(periodUnifiedIssues().filter(issue => issue.priority === "P0").length), "立即处理", "统一问题队列"]
+    ["GMV掉量链接", String(issues.length), `少卖 ${periodFormatMoney(lost)}`, "按 Product ID 排序"]
   ];
   return cards.map(card => "<article><span>" + escapeHtml(card[0]) + "</span><strong>" + escapeHtml(card[1]) + "</strong><small>" + escapeHtml(card[3]) + " · " + escapeHtml(card[2]) + "</small></article>").join("");
 }
@@ -1244,6 +1337,44 @@ function periodHomeChannelCard(moduleKey, title, fields) {
     return "<div><span>" + escapeHtml(field[0]) + "</span><strong>" + value + "</strong><small>" + periodChangeText(periodDelta(current[field[1]], compare[field[1]])) + "</small></div>";
   }).join("");
   return "<article class=\"period-channel-card\"><div class=\"period-channel-head\"><span>" + escapeHtml(title) + "</span><small>" + escapeHtml(state.periodAnalysis.modules[moduleKey].current.label) + " vs " + escapeHtml(state.periodAnalysis.modules[moduleKey].compare.label) + "</small></div><div class=\"period-channel-metrics\">" + values + "</div></article>";
+}
+
+function periodCategoryRollup(issues) {
+  const groups = new Map();
+  issues.forEach(issue => {
+    const currentSales = Number(issue.current?.netSalesIdr) || 0;
+    const compareSales = Number(issue.compare?.netSalesIdr) || 0;
+    const group = groups.get(issue.category) || { category: issue.category, links: 0, lost: 0, currentSales: 0, compareSales: 0 };
+    group.links += 1; group.lost += issue.lost; group.currentSales += currentSales; group.compareSales += compareSales;
+    groups.set(issue.category, group);
+  });
+  return [...groups.values()].map(group => ({ ...group, delta: periodDelta(group.currentSales, group.compareSales) })).sort((a, b) => b.lost - a.lost);
+}
+
+function periodIssueFilterMatch(issue, filter) {
+  if (filter === "全部") return true;
+  if (filter === "price") return issue.cause.type === "件单价";
+  if (filter === "conversion") return ["商品承接", "直播承接"].includes(issue.cause.type);
+  if (filter === "ads") return issue.ad.status === "signal";
+  if (filter === "livestream") return issue.live.status === "signal";
+  if (filter === "removed") return issue.status === "removed";
+  return true;
+}
+
+function periodIssueCard(issue) {
+  const metrics = issue.metrics;
+  const signals = [issue.ad.status === "signal" ? `广告：${issue.ad.label}` : "", issue.live.status === "signal" ? `直播：${issue.live.label}` : ""].filter(Boolean);
+  const metric = (label, value, delta) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small class="period-change ${periodChangeClass(delta)}">${escapeHtml(periodChangeText(delta))}</small></div>`;
+  return `<article class="period-issue-card link-loss-card priority-${issue.priority.toLowerCase()}">
+    <div class="period-issue-card-head"><span class="period-rank">TOP ${issue.rank}</span><span class="period-issue-source">${escapeHtml(issue.category)}</span><span class="period-priority">${issue.priority}</span></div>
+    <h3>${escapeHtml(issue.shortName)}</h3><p class="period-link-id">Product ID · ${escapeHtml(issue.productId)}</p>
+    <div class="period-issue-impact"><strong>${periodFormatMoney(issue.lost)}</strong><span>本周期少卖金额</span></div>
+    <div class="period-link-metrics">${metric("GMV", periodFormatMoney(metrics.currentSales), metrics.salesDelta)}${metric("销量", periodFormatNumber(metrics.currentUnits), metrics.unitsDelta)}${metric("件单价", periodFormatMoney(metrics.currentAsp), metrics.aspDelta)}${metric("访客", periodFormatNumber(metrics.currentVisitors), metrics.visitorDelta)}</div>
+    <div class="period-link-cause"><span>主诊断 · ${escapeHtml(issue.cause.type)}</span><strong>${escapeHtml(issue.cause.title)}</strong></div>
+    <div class="period-signal-tags">${signals.length ? signals.map(signal => `<span>${escapeHtml(signal)}</span>`).join("") : "<span class=\"muted\">广告 / 直播暂无强信号</span>"}</div>
+    <div class="period-issue-action"><span>先做什么</span>${escapeHtml(issue.action)}</div>
+    <button type="button" class="period-issue-detail-button" data-period-issue="${escapeHtml(issue.id)}">打开链接诊断 →</button>
+  </article>`;
 }
 
 function renderPeriodHome() {
@@ -1268,10 +1399,11 @@ function renderPeriodHome() {
   const issues = periodUnifiedIssues();
   const filter = state.periodIssueFilter;
   const search = state.periodIssueSearch.toLowerCase();
-  const visible = issues.filter(issue => (filter === "全部" || filter === issue.priority || filter === issue.moduleKey) && (!search || (issue.title + issue.source + issue.evidence.map(item => item.name + " " + item.productId).join(" ")).toLowerCase().includes(search)));
-  $("#periodIssueCount").textContent = visible.length + " 个问题 · P0 " + issues.filter(issue => issue.priority === "P0").length + " · P1 " + issues.filter(issue => issue.priority === "P1").length + " · P2 " + issues.filter(issue => issue.priority === "P2").length;
-  $("#periodIssueFilters").innerHTML = [["全部", "全部"], ["P0", "P0"], ["P1", "P1"], ["P2", "P2"], ["商品销售", "product"], ["产品广告", "ads"], ["产品直播", "livestream"]].map(item => "<button type=\"button\" class=\"period-filter-button " + (filter === item[1] ? "active" : "") + "\" data-period-issue-filter=\"" + item[1] + "\">" + item[0] + "</button>").join("");
-  $("#periodIssueGrid").innerHTML = visible.slice(0, 20).map(issue => "<article class=\"period-issue-card priority-" + issue.priority.toLowerCase() + "\"><div class=\"period-issue-card-head\"><span class=\"period-priority\">" + issue.priority + "</span><span class=\"period-issue-source\">" + escapeHtml(issue.source) + "</span><small>#</small></div><h3>" + escapeHtml(issue.title) + "</h3><div class=\"period-issue-impact\"><strong>" + periodFormatMoney(issue.impactAmount) + "</strong><span>估算影响金额 · " + issue.affectedCount + " 个商品</span></div><div class=\"period-issue-evidence\">" + issue.evidence.map(item => "<span>" + escapeHtml(item.name) + " · " + periodChangeText(item.delta) + "</span>").join("") + "</div><p>" + escapeHtml(issue.conclusion) + "</p><div class=\"period-issue-action\"><span>建议动作</span>" + escapeHtml(issue.action) + "</div><button type=\"button\" class=\"period-issue-detail-button\" data-period-issue=\"" + issue.id + "\">查看问题详情 →</button></article>").join("") || "<div class=\"period-home-note\">当前筛选没有问题。</div>";
+  const visible = issues.filter(issue => periodIssueFilterMatch(issue, filter) && (!search || (issue.shortName + issue.originalName + issue.category + issue.productId + issue.cause.title).toLowerCase().includes(search)));
+  const lost = visible.reduce((sum, issue) => sum + issue.lost, 0);
+  $("#periodIssueCount").textContent = visible.length + " 条链接 · 少卖 " + periodFormatMoney(lost) + " · 按少卖金额排序";
+  $("#periodIssueFilters").innerHTML = [["全部", "全部"], ["件单价信号", "price"], ["商品承接", "conversion"], ["广告有信号", "ads"], ["直播有信号", "livestream"], ["本期无销售", "removed"]].map(item => "<button type=\"button\" class=\"period-filter-button " + (filter === item[1] ? "active" : "") + "\" data-period-issue-filter=\"" + item[1] + "\">" + item[0] + "</button>").join("");
+  $("#periodIssueGrid").innerHTML = visible.slice(0, 12).map(periodIssueCard).join("") || "<div class=\"period-home-note\">当前筛选没有 GMV 掉量链接。</div>";
   $$("[data-period-issue-filter]").forEach(button => button.addEventListener("click", () => { state.periodIssueFilter = button.dataset.periodIssueFilter; renderPeriodHome(); }));
   $$("[data-period-issue]").forEach(button => button.addEventListener("click", () => openPeriodIssueDialog(button.dataset.periodIssue)));
 }
@@ -1304,12 +1436,48 @@ function saveAnalysisHistory(status = "draft") {
   renderPeriodHome();
 }
 
+function periodDetailValue(value, type = "number") {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  if (type === "money") return periodFormatMoney(value);
+  if (type === "percent") return formatPercent(value, 2);
+  if (type === "ratio") return Number(value).toFixed(2);
+  return periodFormatNumber(value);
+}
+
+function periodDetailMetric(label, current, compare, type = "number") {
+  const delta = periodDelta(current, compare);
+  return `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(periodDetailValue(current, type))}</strong><small>${escapeHtml(periodChangeText(delta))} · 对比 ${escapeHtml(periodDetailValue(compare, type))}</small></div>`;
+}
+
+function periodChannelDetail(title, signal, fields) {
+  if (signal.status === "missing") return `<section class="period-detail-section"><div class="period-detail-section-head"><span>${escapeHtml(title)}</span><small>未匹配 Product ID</small></div><p class="period-detail-muted">${escapeHtml(signal.label)}，本条链接暂不生成渠道判断。</p></section>`;
+  const current = signal.current || {};
+  const compare = signal.compare || {};
+  return `<section class="period-detail-section"><div class="period-detail-section-head"><span>${escapeHtml(title)}</span><strong class="period-signal-${signal.status}">${escapeHtml(signal.label)}</strong></div><div class="period-detail-metrics">${fields.map(field => periodDetailMetric(field[0], current[field[1]], compare[field[1]], field[2])).join("")}</div><p class="period-detail-muted">${title === "广告信号" ? "广告归因销售独立展示，不与商品净销售额相加；投放状态需结合计划后台确认。" : "当前直播报表按商品关联；没有场次、主播和完整曝光字段时，不直接归因到具体场次。"}</p></section>`;
+}
+
 function openPeriodIssueDialog(issueId) {
   const issue = periodUnifiedIssues().find(item => item.id === issueId);
   if (!issue) return;
-  $("#periodIssueDialogTitle").textContent = issue.title;
-  $("#periodIssueDialogTags").innerHTML = "<span>" + issue.priority + "</span><span>" + escapeHtml(issue.source) + "</span><span>" + issue.affectedCount + " 个受影响商品</span><span>影响 " + periodFormatMoney(issue.impactAmount) + "</span>";
-  $("#periodIssueDialogBody").innerHTML = "<div class=\"diagnosis-score-grid\"><article><span>业务影响</span><strong>" + periodFormatMoney(issue.impactAmount) + "</strong><small>本板块周期内估算</small></article><article><span>影响商品</span><strong>" + issue.affectedCount + "</strong><small>Product ID 可下钻</small></article><article><span>结论边界</span><strong>规则证据</strong><small>需结合外部数据验证原因</small></article><article><span>状态</span><strong>未处理</strong><small>可加入动作队列</small></article></div><section><span class=\"detail-label\">事实依据</span><p>" + escapeHtml(issue.evidence.map(item => item.name + "（" + item.productId + "）" + periodChangeText(item.delta)).join("；")) + "</p></section><section><span class=\"detail-label\">诊断结论</span><p>" + escapeHtml(issue.conclusion) + "</p></section><section><span class=\"detail-label\">待验证猜想</span><p>" + escapeHtml(issue.hypothesis) + "</p></section><section class=\"ai-solution\"><span class=\"detail-label\">建议动作</span><p>" + escapeHtml(issue.action) + "</p><p><strong>验证指标：</strong>" + escapeHtml(issue.verification) + "</p><button type=\"button\" class=\"primary-button\" data-add-period-action=\"" + issue.id + "\">加入待处理</button></section><section><span class=\"detail-label\">受影响商品</span><div class=\"period-affected-list\">" + issue.affectedRows.slice(0, 30).map(row => "<div><strong>" + escapeHtml(row.current?.shortName || row.current?.name || row.compare?.shortName || row.compare?.name || "未命名商品") + "</strong><small>" + row.productId + " · " + periodChangeText(row.delta) + "</small></div>").join("") + "</div></section>";
+  const metrics = issue.metrics;
+  const allIssues = periodUnifiedIssues();
+  const categories = periodCategoryRollup(allIssues);
+  const category = categories.find(item => item.category === issue.category);
+  const categoryRank = categories.findIndex(item => item.category === issue.category) + 1;
+  const modelRows = issue.modelRows.slice(0, 8);
+  const modelHtml = modelRows.length ? `<table class="period-detail-table"><thead><tr><th>Model</th><th>销量</th><th>订单</th><th>件单价</th><th>库存</th></tr></thead><tbody>${modelRows.map(row => `<tr><td><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.modelId)}</small></td><td>${periodDetailValue(row.current?.units)}<small>${periodChangeText(row.unitsDelta)}</small></td><td>${periodDetailValue(row.current?.orders)}<small>${periodChangeText(periodDelta(row.current?.orders, row.compare?.orders))}</small></td><td>${periodDetailValue(row.aspCurrent, "money")}<small>${periodChangeText(periodDelta(row.aspCurrent, row.aspCompare))}</small></td><td>${periodDetailValue(row.current?.stock)}</td></tr>`).join("")}</tbody></table>` : `<p class="period-detail-muted">当前链接没有足够的 Model 对比数据。</p>`;
+  const categoryHtml = category ? `<div class="period-category-context"><div><span>所属品类</span><strong>${escapeHtml(category.category)}</strong><small>掉量品类排名 #${categoryRank} · ${category.links} 条掉量链接</small></div><div><span>品类少卖金额</span><strong>${periodFormatMoney(category.lost)}</strong><small>${periodChangeText(category.delta)} · 本期 ${periodFormatMoney(category.currentSales)}</small></div></div>` : "";
+  $("#periodIssueDialogTitle").textContent = `${issue.shortName} · 链接诊断`;
+  $("#periodIssueDialogTags").innerHTML = `<span>TOP ${issue.rank}</span><span>${escapeHtml(issue.category)}</span><span>${escapeHtml(issue.productId)}</span><span>少卖 ${periodFormatMoney(issue.lost)}</span>`;
+  $("#periodIssueDialogBody").innerHTML = `<div class="period-detail-hero"><span>主诊断 · ${escapeHtml(issue.cause.type)}</span><h3>${escapeHtml(issue.cause.title)}</h3><p>${escapeHtml(issue.conclusion)}</p></div>
+    <div class="diagnosis-score-grid period-detail-score"><article><span>本期销售额</span><strong>${periodFormatMoney(metrics.currentSales)}</strong><small>对比 ${periodFormatMoney(metrics.compareSales)}</small></article><article><span>少卖金额</span><strong>${periodFormatMoney(issue.lost)}</strong><small>${periodChangeText(metrics.salesDelta)}</small></article><article><span>销量贡献</span><strong>${periodFormatMoney(issue.volumeImpact)}</strong><small>GMV 变化拆解</small></article><article><span>件单价贡献</span><strong>${periodFormatMoney(issue.priceImpact)}</strong><small>GMV 变化拆解</small></article></div>
+    <section class="period-detail-section"><div class="period-detail-section-head"><span>01 · 商品销售链路</span><small>本期 vs 对比期</small></div><div class="period-detail-metrics">${periodDetailMetric("商品访客", metrics.currentVisitors, metrics.compareVisitors)}${periodDetailMetric("加购", metrics.currentAtc, metrics.compareAtc)}${periodDetailMetric("订单", metrics.currentOrders, metrics.compareOrders)}${periodDetailMetric("销量件数", metrics.currentUnits, metrics.compareUnits)}${periodDetailMetric("订单转化率", periodRatio(metrics.currentOrders, metrics.currentVisitors), periodRatio(metrics.compareOrders, metrics.compareVisitors), "percent")}${periodDetailMetric("加购到订单", periodRatio(metrics.currentOrders, metrics.currentAtc), periodRatio(metrics.compareOrders, metrics.compareAtc), "percent")}${periodDetailMetric("件单价", metrics.currentAsp, metrics.compareAsp, "money")}${periodDetailMetric("库存覆盖", metrics.current?.coverage, metrics.compare?.coverage)}</div></section>
+    ${categoryHtml}
+    <section class="period-detail-section"><div class="period-detail-section-head"><span>02 · Model 下钻</span><small>按 Model 少卖金额排序</small></div>${modelHtml}</section>
+    ${periodChannelDetail("广告信号", issue.ad, [["广告花费", "spendIdr", "money"], ["广告曝光", "impressions", "number"], ["广告点击", "clicks", "number"], ["广告订单", "orders", "number"], ["广告归因销售", "salesIdr", "money"], ["ROAS", "roas", "ratio"]])}
+    ${periodChannelDetail("直播信号", issue.live, [["直播加购", "atc", "number"], ["直播订单", "orders", "number"], ["直播买家", "buyers", "number"], ["直播净销售", "netSalesIdr", "money"], ["直播 Gross Sales", "grossSalesIdr", "money"]])}
+    <section class="period-detail-section"><div class="period-detail-section-head"><span>03 · 结论边界</span><small>事实 / 判断 / 待核查</small></div><div class="period-boundary-grid"><div><span>已确认事实</span><p>GMV ${periodChangeText(metrics.salesDelta)}；销量 ${periodChangeText(metrics.unitsDelta)}；件单价 ${periodChangeText(metrics.aspDelta)}；访客 ${periodChangeText(metrics.visitorDelta)}。</p></div><div><span>高概率判断</span><p>${escapeHtml(issue.conclusion)}</p></div><div><span>待验证</span><p>${escapeHtml(issue.hypothesis)}</p></div><div><span>暂未接入</span><p>标题 / 热搜词暂不诊断；价格历史、广告计划状态和直播场次维度按当前文件能力逐项核查。</p></div></div></section>
+    <section class="period-detail-section ai-solution"><div class="period-detail-section-head"><span>04 · 下一步动作</span><small>调整后下周期验证</small></div><p class="period-action-lead">${escapeHtml(issue.action)}</p><p><strong>验证指标：</strong>${escapeHtml(issue.verification)}</p><button type="button" class="primary-button" data-add-period-action="${escapeHtml(issue.id)}">加入待处理</button></section>`;
   $("#periodIssueDialog").showModal();
   $("#periodIssueDialog [data-add-period-action]")?.addEventListener("click", () => { addPeriodAction(issue); $("#periodIssueDialog").close(); });
 }
