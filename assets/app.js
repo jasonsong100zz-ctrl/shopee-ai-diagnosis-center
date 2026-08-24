@@ -1226,6 +1226,9 @@ async function init() {
       state.definitions = cloudData.definitions;
       state.snapshots = cloudData.snapshots || null;
       state.periodAnalysis = periodEnsureShape(cloudData.sourceFacts?.periodAnalysis || cloudData.sourceFacts);
+      if (!state.periodAnalysis) {
+        try { state.periodAnalysis = periodEnsureShape(await (await fetch("assets/demo-periods.json")).json()); } catch { state.periodAnalysis = null; }
+      }
       window.ShopeeCloud.sourceMode = "cloud";
     } else {
       const [dashboardResponse, module1Response, definitionsResponse] = await Promise.all([fetch(DATA_URL), fetch(MODULE1_URL), fetch(DEFINITIONS_URL)]);
