@@ -4,9 +4,10 @@
 <body>
   <h1><img src="icons/icon32.png" alt="FM"> FM 竞品监控</h1>
   <label>竞品清单链接<input id="sheetUrl" placeholder="可直接粘贴 Google Sheet 编辑链接"></label>
+  <label>保存方式<select id="mode"><option value="offline">离线采集并下载 CSV（推荐）</option><option value="cloud">发布到 Supabase（需要本地桥）</option></select></label>
   <label>本地发布桥地址<input id="bridgeUrl"></label>
   <label>工作区 UUID<input id="workspaceId"></label>
-  <div class="actions"><button id="start">开始监控</button><button id="resume">验证后继续</button><button id="retry">重试失败</button><button id="stop">停止</button></div>
+  <div class="actions"><button id="check">检查桥接</button><button id="start">开始监控</button><button id="resume">验证后继续</button><button id="retry">重试失败</button><button id="stop">停止</button></div>
   <button id="download" class="download">下载本次结果 CSV</button>
   <p id="status">加载中…</p><p id="progress"></p><p id="downloadPath" hidden></p><div id="failures" hidden></div>
   <script src="popup.js"></script>

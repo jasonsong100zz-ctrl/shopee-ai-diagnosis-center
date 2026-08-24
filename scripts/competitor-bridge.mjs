@@ -6,7 +6,7 @@ const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const defaultWorkspaceId = process.env.COMPETITOR_WORKSPACE_ID;
 
-function json(response, status, body) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type" }); response.end(JSON.stringify(body)); }
+function json(response, status, body) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" }); response.end(JSON.stringify(body)); }
 function hash(value) { return createHash("sha256").update(value).digest("hex"); }
 async function request(table, method, body, query = "") {
   const response = await fetch(`${supabaseUrl}/rest/v1/${table}${query}`, { method, headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation,resolution=merge-duplicates" }, body: body === undefined ? undefined : JSON.stringify(body) });

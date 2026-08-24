@@ -1,7 +1,8 @@
 const DEFAULTS = {
   sheetUrl: "https://docs.google.com/spreadsheets/d/1sQfu_8VCBhH3WnKp67It3RwiB8vQRLjBzSWY9ndWI8w/export?format=csv&gid=0",
   bridgeUrl: "http://127.0.0.1:8787",
-  workspaceId: "d67e57a2-b486-41e3-9321-bdf8b30ae6c6"
+  workspaceId: "d67e57a2-b486-41e3-9321-bdf8b30ae6c6",
+  mode: "offline"
 };
 
 function parseCsv(input) {
@@ -134,11 +135,41 @@ async function setState(patch) {
   chrome.runtime.sendMessage({ type: "STATE", state }).catch(() => {});
 }
 
+function bridgeUrl(settings, path) { return `${settings.bridgeUrl.replace(/\/$/, "")}${path}`; }
+
+async function fetchJson(url, options, unavailableMessage) {
+  try {
+    const response = await fetch(url, options);
+    const text = await response.text();
+    let body = {};
+    try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text }; }
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    return body;
+  } catch (error) {
+    if (error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message || "")) throw new Error(unavailableMessage);
+    throw error;
+  }
+}
+
+async function checkBridge(settings) {
+  const body = await fetchJson(bridgeUrl(settings, "/health"), { signal: AbortSignal.timeout(5000) }, "本地发布桥不可用，请先启动 npm run competitor:bridge");
+  if (!body.supabaseConfigured) throw new Error("本地发布桥已启动，但缺少 Supabase 配置");
+  if (!body.workspaceConfigured) throw new Error("本地发布桥已启动，但缺少工作区配置");
+  return body;
+}
+
 async function fetchQueue(settings) {
   const csvUrl = sheetCsvUrl(settings.sheetUrl);
-  const response = await fetch(csvUrl);
-  if (!response.ok) throw new Error(`读取 Google Sheet 失败: HTTP ${response.status}`);
-  const queue = normalizeRows(await response.text());
+  let text;
+  try {
+    const response = await fetch(csvUrl, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    text = await response.text();
+  } catch (error) {
+    if (error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message || "")) throw new Error("Google Sheet 无法读取，请确认链接可访问且已发布为可查看");
+    throw new Error(`读取 Google Sheet 失败：${error.message || error}`);
+  }
+  const queue = normalizeRows(text);
   if (!queue.length) throw new Error("清单中没有启用的有效竞品链接");
   return { csvUrl, queue };
 }
@@ -175,11 +206,11 @@ async function collectCurrent() {
       if (["captcha", "login", "redirected"].includes(result.status)) return setState({ paused: true, status: `已暂停：${result.error}`, current: record });
       if (result.status === "error") throw new Error(result.error);
       const settings = (await getState()).settings;
-      const response = await fetch(`${settings.bridgeUrl.replace(/\/$/, "")}/publish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: settings.workspaceId, record, snapshot: result.snapshot }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || `发布失败: HTTP ${response.status}`);
+      if (settings.mode === "cloud") {
+        await fetchJson(bridgeUrl(settings, "/publish"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: settings.workspaceId, record, snapshot: result.snapshot }), signal: AbortSignal.timeout(15000) }, "本地发布桥不可用，请先启动 npm run competitor:bridge");
+      }
       const latest = await getState();
-      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: true }], reportRows: [...(latest.reportRows || []), reportRow(record, result.snapshot)], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}` });
+      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: settings.mode === "cloud" }], reportRows: [...(latest.reportRows || []), reportRow(record, result.snapshot)], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}${settings.mode === "offline" ? "（离线保存）" : ""}` });
     } catch (error) {
       const latest = await getState();
       if (!latest.running || latest.paused) return;
@@ -192,7 +223,8 @@ async function collectCurrent() {
 async function finish() {
   const state = await getState();
   const fileName = reportFileName(state);
-  await setState({ running: false, paused: false, reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, status: state.failed.length ? `监控完成：成功 ${state.results.length} 条，失败 ${state.failed.length} 条` : `监控完成：成功 ${state.results.length} 条` });
+  const offlineSuffix = state.settings?.mode === "offline" ? " · 离线结果可下载" : "";
+  await setState({ running: false, paused: false, reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, status: state.failed.length ? `监控完成：成功 ${state.results.length} 条，失败 ${state.failed.length} 条${offlineSuffix}` : `监控完成：成功 ${state.results.length} 条${offlineSuffix}` });
 }
 
 async function downloadReport() {
@@ -211,13 +243,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       const current = await getState();
       if (current.running) return;
-      const settings = { ...DEFAULTS, ...message.settings, sheetUrl: sheetCsvUrl(message.settings?.sheetUrl || DEFAULTS.sheetUrl) };
+      const settings = { ...DEFAULTS, ...message.settings, mode: message.settings?.mode === "cloud" ? "cloud" : "offline", sheetUrl: sheetCsvUrl(message.settings?.sheetUrl || DEFAULTS.sheetUrl) };
       await chrome.storage.local.set({ settings });
+      if (settings.mode === "cloud") await checkBridge(settings);
       const fetched = await fetchQueue(settings);
       await setState({ queue: fetched.queue, index: 0, results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null, running: true, paused: false, status: `已读取 ${fetched.queue.length} 条链接` });
       await collectCurrent();
-    })().catch((error) => setState({ running: false, paused: true, status: `失败：${error.message}` }));
+    })().catch((error) => setState({ running: false, paused: false, status: `失败：${error.message}` }));
     sendResponse({ ok: true });
+  }
+  if (message?.type === "CHECK_BRIDGE") {
+    (async () => {
+      const state = await getState();
+      if ((state.settings || DEFAULTS).mode !== "cloud") {
+        await setState({ status: "离线模式正常，无需启动本地桥接服务" });
+        return { ok: true, offline: true };
+      }
+      const body = await checkBridge(state.settings || DEFAULTS);
+      await setState({ status: "本地发布桥正常，可开始监控" });
+      return { ok: true, body };
+    })().then(sendResponse).catch((error) => {
+      setState({ status: `桥接检查失败：${error.message}` });
+      sendResponse({ ok: false, error: error.message });
+    });
   }
   if (message?.type === "RESUME") { setState({ running: true, paused: false, status: "继续采集" }).then(() => collectCurrent()).catch((error) => setState({ paused: true, status: `失败：${error.message}` })); sendResponse({ ok: true }); }
   if (message?.type === "RETRY_FAILED") {
