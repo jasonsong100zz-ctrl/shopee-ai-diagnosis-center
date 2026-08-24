@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#17231f" />
-    <meta name="description" content="Shopee Indonesia Glad2Glow 运营诊断、Listing 定位、任务与 SOP 总控工作台。" />
+    <meta name="description" content="Shopee Indonesia Glad2Glow 周期运营诊断中心：统一识别商品销售、产品广告和产品直播问题，并跟踪动作复盘。" />
     <meta property="og:title" content="Shopee AI 诊断中心｜总控看板" />
     <meta property="og:description" content="把 Listing、广告、流量、客服与 SOP 汇总成可执行任务。" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="assets/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <title>Shopee AI 诊断中心｜总控看板</title>
+    <title>Shopee AI 诊断中心｜周期问题诊断</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -24,18 +24,11 @@
           <span><strong>Shopee AI</strong><small>诊断中心 · Indonesia</small></span>
         </a>
         <nav class="nav-list">
-          <a class="nav-item active" href="#overview"><span>01</span>经营总览</a>
-          <button class="nav-item nav-toggle" id="workflowNavToggle" type="button" aria-expanded="false" aria-controls="workflowSubmenu"><span>02</span><strong>工作流主控</strong><b>⌄</b></button>
-          <div class="nav-submenu" id="workflowSubmenu" aria-label="五个业务板块" hidden>
-            <div class="nav-subgroup"><a href="#chat-01"><span>板块 1</span>Listing 本地化</a><a class="nav-deep-link" href="#listings">链接执行中心</a></div>
-            <div class="nav-subgroup"><a href="#chat-02"><span>板块 2</span>广告出价调优</a></div>
-            <div class="nav-subgroup"><a href="#chat-03"><span>板块 3</span>店铺漏斗归因</a></div>
-            <div class="nav-subgroup"><a href="#chat-04"><span>板块 4</span>客服与竞品</a></div>
-            <div class="nav-subgroup"><a href="#chat-05"><span>板块 5</span>主控与 SOP</a><a class="nav-deep-link" href="#tasks">任务与复盘</a><a class="nav-deep-link" href="#sop">SOP 与模板</a></div>
-          </div>
-          <a class="nav-item" href="#period-analysis"><span>06</span>周期诊断</a>
-          <a class="nav-item" href="#subsidy"><span>03</span>补贴分配</a>
-          <a class="nav-item" href="#data-governance"><span>07</span>数据源 & 定义</a>
+        <a class="nav-item active" href="#overview"><span>01</span>诊断首页</a>
+        <a class="nav-item" href="#new-analysis"><span>02</span>新建分析</a>
+        <a class="nav-item" href="#history"><span>03</span>历史分析</a>
+        <a class="nav-item" href="#actions"><span>04</span>动作与复盘</a>
+        <a class="nav-item" href="#data-governance"><span>05</span>数据与规则</a>
         </nav>
         <div class="sidebar-note">
           <span class="pulse"></span>
@@ -49,35 +42,24 @@
           <div class="breadcrumb">GLAD2GLOW <span>/</span> Shopee Indonesia</div>
           <div class="top-actions">
             <button class="ghost-button" id="exportButton" type="button">导出周报</button>
-            <a class="primary-button" href="#tasks">查看今日任务 <span>→</span></a>
+            <a class="primary-button" href="#actions">查看待处理动作 <span>→</span></a>
           </div>
         </header>
 
-        <section class="section hero-section" id="overview" data-route="overview">
-          <div class="hero-copy">
-            <span class="eyebrow">DAILY BUSINESS OVERVIEW</span>
-            <h1>经营总览</h1>
-            <p>按店铺 → 类目 → 链接逐层查看当前经营结果、异常问题与调整方向。</p>
+        <section class="section diagnosis-home-section" id="overview" data-route="overview">
+          <div class="diagnosis-home-hero">
+            <div><span class="eyebrow">PERIOD DIAGNOSIS · DECISION FIRST</span><h1>本周期先处理什么问题？</h1><p>系统把商品销售、产品广告和产品直播合并成一条问题队列，优先展示影响最大且证据最清晰的问题。</p></div>
+            <div class="diagnosis-period-status" id="periodHomeStatus"></div>
           </div>
-          <div class="hero-side">
-            <div class="hero-date"><span>当前数据周期</span><strong>2026 年 7 月</strong></div>
-            <div class="hero-signal"><i></i><span>核心判断</span><p>成熟链接中 51.8% 已明显下滑或连续衰退，资源应先集中到 T1/T2 核心链接。</p></div>
-          </div>
-        </section>
-
-        <section class="section metrics-section" data-route="overview" aria-labelledby="metrics-title">
-          <div class="section-heading compact">
-            <div><span class="kicker">CURRENT PERIOD · JUL 2026</span><h2 id="metrics-title">当前周期核心指标</h2></div>
-            <div class="legend"><span><i class="dot green"></i>健康</span><span><i class="dot amber"></i>待优化</span><span><i class="dot red"></i>高风险</span></div>
-          </div>
-          <div class="metric-grid" id="metricGrid"></div>
-          <div class="overview-levels">
-            <section class="overview-level"><div class="overview-level-head"><span>STORE VIEW</span><h3>店铺指标</h3></div><div id="storeOverview"></div></section>
-            <section class="overview-level"><div class="overview-level-head"><span>CATEGORY VIEW</span><h3>类目指标</h3></div><div id="categoryOverview"></div></section>
-            <section class="overview-level"><div class="overview-level-head"><span>LINK VIEW</span><h3>链接指标</h3></div><div id="linkOverview"></div></section>
-          </div>
-          <div class="overview-actions-head"><div><span>AI BUSINESS REVIEW</span><h3>目前问题点与调整点</h3></div><small>由店铺、类目和链接数据自动归因</small></div>
-          <div class="overview-actions-grid" id="overviewActionsGrid"></div>
+          <div class="diagnosis-home-health" id="periodHomeHealth"></div>
+          <div class="section-heading compact diagnosis-home-heading"><div><span class="kicker">BUSINESS RESULT</span><h2>整体结果</h2></div><p>商品销售是经营主结果；广告和直播作为独立渠道信号，不直接相加。</p></div>
+          <div class="period-outcome-grid" id="periodOutcomeGrid"></div>
+          <div class="section-heading compact diagnosis-home-heading"><div><span class="kicker">CHANNEL SIGNALS</span><h2>渠道信号</h2></div><p>渠道数据用于解释问题来源，周期不一致时不参与跨板块金额排序。</p></div>
+          <div class="period-channel-grid" id="periodChannelGrid"></div>
+          <div class="section-heading compact diagnosis-home-heading"><div><span class="kicker">PRIORITY QUEUE</span><h2>最需要处理的问题</h2></div><p id="periodIssueCount">—</p></div>
+          <div class="period-issue-toolbar"><div class="period-issue-filters" id="periodIssueFilters"></div><label class="period-issue-search"><span>⌕</span><input id="periodIssueSearch" type="search" placeholder="搜索问题、简称或 Product ID" /></label></div>
+          <div class="period-issue-grid" id="periodIssueGrid"></div>
+          <div class="period-home-empty" id="periodHomeEmpty" hidden>暂无可用诊断结果。请进入“新建分析”，上传本次周期和对比周期后运行诊断。</div>
         </section>
 
         <section class="section" id="workflows" data-route="workflows" hidden>
@@ -88,14 +70,14 @@
           <div class="workflow-grid" id="workflowGrid"></div>
         </section>
 
-        <section class="section period-analysis-section" id="period-analysis" data-route="period-analysis" hidden>
+        <section class="section period-analysis-section" id="new-analysis" data-route="new-analysis" hidden>
           <div class="section-heading">
             <div><span class="kicker">PERIOD DIAGNOSIS · CURRENT VS COMPARISON</span><h2>周期诊断中心</h2></div>
             <p>按板块上传本次周期与对比周期，系统只做这两个周期的环比比较；不强制日、周、月口径。</p>
           </div>
           <div class="period-toolbar">
             <div><strong>先上传，再诊断</strong><span>支持 Shopee 原始 XLSX；每个板块必须同时具备两份周期文件。</span></div>
-            <div class="period-toolbar-actions"><button class="ghost-button" id="clearPeriodAnalysis" type="button">清除本机周期数据</button><button class="primary-button" id="loadPeriodDemo" type="button">加载真实数据 Demo</button></div>
+            <div class="period-toolbar-actions"><button class="ghost-button" id="clearPeriodAnalysis" type="button">清除本机周期数据</button><button class="ghost-button" id="runPeriodDiagnosis" type="button">运行诊断</button><button class="primary-button" id="loadPeriodDemo" type="button">加载真实数据 Demo</button></div>
           </div>
           <div class="period-upload-grid" id="periodUploadGrid">
             <article class="period-upload-card" data-period-module="product">
@@ -189,13 +171,19 @@
           <div class="diagnosis-grid" id="diagnosisGrid"></div>
         </section>
 
-        <section class="section" id="tasks" data-route="tasks" hidden>
+        <section class="section" id="actions" data-route="actions" hidden>
           <div class="section-heading">
-            <div><span class="kicker">LINK-LEVEL ACTION BOARD</span><h2>链接层级任务看板</h2></div>
-            <div class="progress-copy"><strong id="taskProgress">0%</strong><span>本周完成度</span></div>
+            <div><span class="kicker">ACTION & REVIEW</span><h2>动作与复盘</h2></div>
+            <div class="progress-copy"><strong id="taskProgress">0%</strong><span>当前动作完成度</span></div>
           </div>
           <div class="task-columns" id="taskColumns"></div>
-          <p class="local-note">任务勾选状态会保存在当前浏览器，不会改动示例数据文件。</p>
+          <p class="local-note">当前版本先复用动作队列；负责人、截止日期和下周期验证记录将在历史任务存储接入后同步到团队。</p>
+        </section>
+
+        <section class="section history-section" id="history" data-route="history" hidden>
+          <div class="section-heading"><div><span class="kicker">ANALYSIS HISTORY</span><h2>历史分析</h2></div><p>已发布版本只读保留；数据修正必须生成新版本。</p></div>
+          <div class="history-status" id="historyStatus"></div>
+          <div class="history-list" id="historyList"></div>
         </section>
 
         <section class="section" id="sop" data-route="sop" hidden>
@@ -266,6 +254,11 @@
       <div class="dialog-head"><div><span>AI LISTING DIAGNOSIS</span><h3 id="diagnosisDialogTitle">链接诊断</h3></div><button type="button" id="closeDiagnosisDialog" aria-label="关闭">×</button></div>
       <div id="diagnosisDialogTags" class="dialog-summary"></div>
       <div id="diagnosisDialogBody" class="diagnosis-detail"></div>
+    </dialog>
+    <dialog class="model-dialog diagnosis-dialog period-issue-dialog" id="periodIssueDialog">
+      <div class="dialog-head"><div><span>PERIOD ISSUE DETAIL</span><h3 id="periodIssueDialogTitle">问题详情</h3></div><button type="button" id="closePeriodIssueDialog" aria-label="关闭">×</button></div>
+      <div id="periodIssueDialogTags" class="dialog-summary"></div>
+      <div id="periodIssueDialogBody" class="diagnosis-detail"></div>
     </dialog>
     <input id="workflowFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv" hidden />
     <input id="module1FileInput" type="file" accept=".csv,text/csv" hidden />

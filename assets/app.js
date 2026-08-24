@@ -27,7 +27,11 @@ const state = {
   periodImportDraft: { product: {}, ads: {}, livestream: {} },
   selectedPeriodModule: "product",
   selectedPeriodProductId: null,
-  periodSheetJs: null
+  periodSheetJs: null,
+  periodIssueFilter: "全部",
+  periodIssueSearch: "",
+  analysisHistory: JSON.parse(localStorage.getItem("shopee-ai-analysis-history") || "[]"),
+  analysisTask: JSON.parse(localStorage.getItem("shopee-ai-analysis-task") || "null")
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -46,6 +50,7 @@ function showToast(message) {
 }
 
 function renderMetrics() {
+  if (!$("#metricGrid")) return;
   const comparison = state.module1.comparison;
   const totals = comparison?.overall?.july || state.module1.links.reduce((a, item) => ({ views: a.views + item.views, visitors: a.visitors + item.visitors, orders: a.orders + item.orders, buyers: a.buyers + (item.buyers || 0), units: a.units + item.units, sales: a.sales + item.sales, atc: a.atc + item.atcRate * item.visitors }), { views: 0, visitors: 0, orders: 0, buyers: 0, units: 0, sales: 0, atc: 0 });
   const prior = comparison?.overall?.june || {};
@@ -75,6 +80,8 @@ function renderMetrics() {
 function aggregateDimension(key) {
   const groups = new Map();
   state.module1.links.forEach(item => {
+    item.originalName ||= item.name || "";
+    item.shortName = generateShortName(item.name);
     const name = item[key] || "未归属";
     const current = groups.get(name) || { name, links: 0, visitors: 0, orders: 0, units: 0, sales: 0, comparableSales: 0, previousSales: 0, declining: 0, waste: 0 };
     current.links += 1; current.visitors += item.visitors; current.orders += item.orders; current.units += item.units; current.sales += item.sales;
@@ -97,6 +104,7 @@ function dimensionRows(items, limit) {
 }
 
 function renderOverviewLevels() {
+  if (!$("#storeOverview")) return;
   const stores = aggregateDimension("shop");
   const categories = aggregateDimension("category");
   const s = state.module1.summary;
@@ -471,7 +479,7 @@ function renderPagination(total, pages) {
 function openModelDialog(linkId) {
   const item = state.module1.links.find(link => link.id === linkId);
   if (!item) return;
-  $("#modelDialogTitle").textContent = `${item.name} · ${item.productId}`;
+  $("#modelDialogTitle").textContent = `${item.shortName || item.name} · ${item.productId}`;
   $("#modelDialogSummary").innerHTML = `<span>Model ${item.modelSummary.count}</span><span>有货 ${item.modelSummary.inStock}</span><span>缺货 ${item.modelSummary.outOfStock}</span><span>Top集中度 ${formatPercent(item.modelSummary.topShare)}</span>`;
   $("#modelDialogBody").innerHTML = item.modelSummary.topModels.length ? item.modelSummary.topModels.map((model, index) => `<article><b>${index + 1}</b><div><strong>${escapeHtml(model.variation)}</strong><small>${escapeHtml(model.sku || model.modelId)}</small></div><div><strong>${Number(model.units).toLocaleString("zh-CN")}件</strong><small>库存 ${Number(model.stock).toLocaleString("zh-CN")}</small></div></article>`).join("") : `<p>该链接没有可用的 Model 数据。</p>`;
   $("#modelDialog").showModal();
@@ -480,7 +488,7 @@ function openModelDialog(linkId) {
 function openDiagnosisDialog(linkId) {
   const item = state.module1.links.find(link => link.id === linkId);
   if (!item) return;
-  $("#diagnosisDialogTitle").textContent = `${item.name} · ${item.productId}`;
+  $("#diagnosisDialogTitle").textContent = `${item.shortName || item.name} · ${item.productId}`;
   $("#diagnosisDialogTags").innerHTML = `<span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.pool === "新品池" ? item.newGrade : item.tier)}</span><span>${escapeHtml(item.matrix)}</span><span>${escapeHtml(item.lifecycle)}</span><span>${escapeHtml(item.decision)}</span>`;
   const reason = item.matrix === "流量浪费款" ? "流量已进入，但订单转化低于同类或店铺基准，优先检查到手价、首图承诺、规格选择、评价与缺货 Model。"
     : item.matrix === "黑马宝藏款" ? "当前转化效率较好但流量规模不足，适合小步提高关键词覆盖和广告预算。"
@@ -553,6 +561,18 @@ function renderDiagnoses() {
 }
 
 function renderTasks() {
+  const periodActions = JSON.parse(localStorage.getItem("shopee-ai-period-actions") || "[]");
+  if (periodActions.length || location.hash === "#actions") {
+    const completedActions = periodActions.filter(item => item.status === "done").length;
+    $("#taskProgress").textContent = (periodActions.length ? Math.round(completedActions / periodActions.length * 100) : 0) + "%";
+    $("#taskColumns").innerHTML = periodActions.length ? "<section class=\"task-column action-column\"><div class=\"task-column-head\"><div><span class=\"lane-priority\">ACTION QUEUE</span><h3>待处理问题</h3></div><div><strong>" + periodActions.length + "</strong><span>个动作</span></div></div><p class=\"lane-caption\">每个动作需在下周期填写验证结果。</p><div class=\"task-list\">" + periodActions.map(item => "<article class=\"task-item " + (item.status === "done" ? "completed" : "") + "\"><input class=\"task-check\" type=\"checkbox\" data-period-action-key=\"" + escapeHtml(item.key) + "\" " + (item.status === "done" ? "checked" : "") + " /><div class=\"link-task-body\"><div class=\"link-task-tags\"><span>" + escapeHtml(item.priority) + "</span><span>" + escapeHtml(item.source) + "</span></div><h4>" + escapeHtml(item.title) + "</h4><p>" + escapeHtml(item.action) + "</p><small>验证指标：" + escapeHtml(item.verification) + "</small></div></article>").join("") + "</div></section>" : "<div class=\"period-home-note\">还没有加入待处理的问题。请从诊断首页打开问题详情后加入动作。</div>";
+    $$("[data-period-action-key]").forEach(input => input.addEventListener("change", () => {
+      const next = JSON.parse(localStorage.getItem("shopee-ai-period-actions") || "[]").map(item => item.key === input.dataset.periodActionKey ? { ...item, status: input.checked ? "done" : "todo" } : item);
+      localStorage.setItem("shopee-ai-period-actions", JSON.stringify(next));
+      renderTasks();
+    }));
+    return;
+  }
   const score = item => (item.decision === "重点优化" ? 1e15 : 0) + (["单月下滑", "连续衰退"].includes(item.lifecycle) ? 5e14 : 0) + (item.matrix === "黑马宝藏款" ? 2e14 : 0) + item.sales;
   const definitions = [
     { id: "t1", title: "T1 核心保护", priority: "P0 · 今日", caption: "保排名 / 抢救下滑", test: item => item.tier === "T1" },
@@ -722,7 +742,7 @@ function refreshDashboard() {
   $("#diagnosisSourceNote").textContent = `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看AI方案。`;
   renderMetrics(); renderOverviewLevels(); renderWorkflows(); renderSubsidy(); renderModule1Summary(); renderListingFilters();
   $("#storeFilter").value = state.filters.store; $("#poolFilter").value = state.filters.pool; $("#tierFilter").value = state.filters.tier; $("#matrixFilter").value = state.filters.matrix; $("#matchFilter").value = state.filters.match;
-  renderListings(); renderDiagnoses(); renderTasks(); renderSop(); renderGovernance(); renderPeriodAnalysis();
+  renderListings(); renderDiagnoses(); renderTasks(); renderSop(); renderGovernance(); renderPeriodAnalysis(); renderPeriodHome(); renderHistory();
 }
 
 function renderSourceLinkForm(item) {
@@ -749,6 +769,25 @@ const PERIOD_MODULES = {
   ads: { label: "产品广告", primary: "salesIdr", primaryLabel: "广告归因 Gross Sales", currency: "IDR", empty: "On-platform Ads" },
   livestream: { label: "产品直播", primary: "netSalesIdr", primaryLabel: "净销售额", currency: "IDR", empty: "Livestream" }
 };
+
+function generateShortName(value) {
+  let name = String(value || "未命名商品").replace(/\[[^\]]*\]/g, " ").replace(/\b(?:hemat|discount|best seller|special discount|new launch|free shipping|100%\s*ori)\b[^|]*/gi, " ");
+  name = name.replace(/https?:\/\/\S+/gi, " ").replace(/\b(?:official\s*store|authorize\s*store|ready\s*stock|shopee|store)\b/gi, " ");
+  name = name.replace(/\bskinti?fl?c\b/gi, "SKINTIFIC").replace(/\b(?:g2g|g2glow|glad\s*2\s*glow)\b/gi, "Glad2Glow");
+  const parts = name.split(/[|｜]/).map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+  let core = parts[0] || name;
+  core = core.replace(/^(?:SKINTIFIC|Glad2Glow)\s*[-–—:]?\s*/i, "");
+  core = core.replace(/\b(?:mencerahkan|melembabkan|wajah|kulit|skincare|perawatan|facial|brightening|moisturizer|moisturiser)\b/gi, " ");
+  core = core.replace(/\s*[×x]\s*.*$/i, "").replace(/\s+/g, " ").replace(/[,:;|]+$/g, "").trim();
+  const brand = /skintific/i.test(name) ? "SKINTIFIC" : /glad2glow/i.test(name) ? "Glad2Glow" : "";
+  const tokens = core.split(" ").filter(Boolean).slice(0, 7);
+  const result = [brand, tokens.join(" ")].filter(Boolean).join(" · ") || String(value || "未命名商品").replace(/\s+/g, " ").trim();
+  return result.length > 48 ? `${result.slice(0, 45).replace(/[\s,;:|]+$/g, "")}…` : result;
+}
+
+function withShortName(row) {
+  return row ? { ...row, originalName: row.originalName || row.name || "", shortName: row.shortName || generateShortName(row.name) } : row;
+}
 
 function periodNumber(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -778,7 +817,7 @@ function periodSheetRows(workbook, sheetName) {
 }
 
 function periodResult(label, rows, errors = []) {
-  const usable = rows.filter(row => row.productId);
+  const usable = rows.filter(row => row.productId).map(withShortName);
   if (errors.length || !usable.length) return { status: "blocked", label, rows: [], errors: errors.length ? errors : ["没有读取到有效 Product ID"] };
   return { status: "ready", label, rows: usable, errors: [] };
 }
@@ -972,7 +1011,7 @@ function periodEnsureShape(snapshot) {
     modules[moduleKey] = {};
     ["current", "compare"].forEach(period => {
       const value = module[period];
-      if (value?.rows) modules[moduleKey][period] = { status: value.status || "ready", label: value.label || period, rows: value.rows, errors: value.errors || [] };
+      if (value?.rows) modules[moduleKey][period] = { status: value.status || "ready", label: value.label || period, rows: value.rows.map(withShortName), errors: value.errors || [] };
     });
   });
   return { schemaVersion: snapshot.schemaVersion || "period-analysis-v1", generatedAt: snapshot.generatedAt || new Date().toISOString(), modules };
@@ -1024,7 +1063,7 @@ function renderPeriodAnalysis() {
   const config = periodTableConfig(moduleKey);
   $("#periodTableHead").innerHTML = `<tr>${config.map(([label]) => `<th>${escapeHtml(label)}</th>`).join("")}</tr>`;
   $("#periodTableBody").innerHTML = diagnosis.rows.slice(0, 60).map(row => {
-    const item = row.current || row.compare; const cells = config.map(([, key, type]) => { if (key === "name") return `<td><button type="button" data-period-product="${escapeHtml(row.productId)}"><strong>${escapeHtml(item?.name || "未命名商品")}</strong><small>${escapeHtml(row.productId)} · ${escapeHtml(item?.shop || "")}</small></button></td>`; if (key === "delta") return `<td><span class="period-change-badge ${periodChangeClass(row.delta)}">${periodChangeText(row.delta)}</span></td>`; if (key === "diagnosis") return `<td>${escapeHtml(periodDiagnosisText(row, moduleKey))}</td>`; const value = item?.[key]; return `<td>${type === "money" ? periodFormatMoney(value) : type === "ratio" ? (value == null ? "—" : Number(value).toFixed(2)) : periodFormatNumber(value)}</td>`; }); return `<tr>${cells.join("")}</tr>`;
+    const item = row.current || row.compare; const cells = config.map(([, key, type]) => { if (key === "name") return `<td><button type="button" data-period-product="${escapeHtml(row.productId)}"><strong>${escapeHtml(item?.shortName || item?.name || "未命名商品")}</strong><small>${escapeHtml(row.productId)} · ${escapeHtml(item?.shop || "")}</small></button></td>`; if (key === "delta") return `<td><span class="period-change-badge ${periodChangeClass(row.delta)}">${periodChangeText(row.delta)}</span></td>`; if (key === "diagnosis") return `<td>${escapeHtml(periodDiagnosisText(row, moduleKey))}</td>`; const value = item?.[key]; return `<td>${type === "money" ? periodFormatMoney(value) : type === "ratio" ? (value == null ? "—" : Number(value).toFixed(2)) : periodFormatNumber(value)}</td>`; }); return `<tr>${cells.join("")}</tr>`;
   }).join("") || `<tr><td colspan="${config.length}" class="period-empty">当前板块没有可显示商品。</td></tr>`;
   $$('[data-period-module-tab]').forEach(button => button.addEventListener("click", () => { state.selectedPeriodModule = button.dataset.periodModuleTab; state.selectedPeriodProductId = null; renderPeriodAnalysis(); }));
   $$('[data-period-product]').forEach(button => button.addEventListener("click", () => { state.selectedPeriodProductId = button.dataset.periodProduct; renderPeriodAnalysis(); }));
@@ -1036,7 +1075,7 @@ function renderPeriodSelectedModel(moduleKey, rows) {
   if (!current) return "";
   const compareModels = new Map((compare?.models || []).map(model => [String(model.modelId), model]));
   const models = (current.models || []).slice(0, 12);
-  return `<div class="period-models"><h4>Model 下钻 · ${escapeHtml(current.name)}（本次 ${models.length} 个）</h4><table><tbody>${models.map(model => { const prior = compareModels.get(String(model.modelId)); const delta = periodDelta(model.salesIdr, prior?.salesIdr); const status = model.orders > 0 ? "有效成交" : model.atc > 0 ? "有兴趣未成交" : model.stock > 0 ? "低贡献待验证" : "数据不足"; return `<tr><td>${escapeHtml(model.variation || model.sku || model.modelId)}<br><span class="period-model-status">${escapeHtml(status)} · 库存 ${periodFormatNumber(model.stock)}</span></td><td>${periodFormatMoney(model.salesIdr)}<br><span class="period-model-status">环比 ${periodChangeText(delta)}</span></td></tr>`; }).join("") || `<tr><td>没有可用 Model 明细；不能据此判定无效。</td></tr>`}</tbody></table></div>`;
+  return `<div class="period-models"><h4>Model 下钻 · ${escapeHtml(current.shortName || current.name)}（本次 ${models.length} 个）</h4><small class="period-original-name">原始名称：${escapeHtml(current.originalName || current.name)}</small><table><tbody>${models.map(model => { const prior = compareModels.get(String(model.modelId)); const delta = periodDelta(model.salesIdr, prior?.salesIdr); const status = model.orders > 0 ? "有效成交" : model.atc > 0 ? "有兴趣未成交" : model.stock > 0 ? "低贡献待验证" : "数据不足"; return `<tr><td>${escapeHtml(model.variation || model.sku || model.modelId)}<br><span class="period-model-status">${escapeHtml(status)} · 库存 ${periodFormatNumber(model.stock)}</span></td><td>${periodFormatMoney(model.salesIdr)}<br><span class="period-model-status">环比 ${periodChangeText(delta)}</span></td></tr>`; }).join("") || `<tr><td>没有可用 Model 明细；不能据此判定无效。</td></tr>`}</tbody></table></div>`;
 }
 
 async function loadPeriodDemo() {
@@ -1058,6 +1097,226 @@ async function handlePeriodFile(file, moduleKey, period) {
   renderPeriodAnalysis();
   if (result.status === "blocked") showToast(`${PERIOD_MODULES[moduleKey].label}：${result.errors.join("；")}`);
   else showToast(`${PERIOD_MODULES[moduleKey].label} ${period === "current" ? "本次" : "对比"}周期解析完成`);
+}
+
+function periodIssuePriorityLegacy(score, impactShare, severity) {
+  if (severity >= .2 && (impactShare >= .1 || score >= 3)) return "P0";
+  if (severity >= .1 || impactShare >= .04 || score >= 1.5) return "P1";
+  return "P2";
+}
+
+function periodIssueFromRowsLegacy(moduleKey, key, title, rows, valueField, conclusion, hypothesis, action, verification, severity, mode = "loss") {
+  const total = periodTotals(moduleKey, "current");
+  const impactAmount = rows.reduce((sum, row) => {
+    const current = Number(row.current?.[valueField]) || 0;
+    const compare = Number(row.compare?.[valueField]) || 0;
+    return sum + Math.max(0, mode === "spend" ? current - compare : compare - current);
+  }, 0);
+  const denominator = Math.max(1, Number(total.primary) || Number(total.salesIdr) || Number(total.netSalesIdr) || 1);
+  const impactShare = impactAmount / denominator;
+  const score = impactShare * 10 + severity * Math.log10(impactAmount + 10);
+  return {
+    id: moduleKey + "-" + key,
+    moduleKey,
+    source: PERIOD_MODULES[moduleKey].label,
+    priority: periodIssuePriorityLegacy(score, impactShare, severity),
+    title,
+    impactAmount,
+    affectedRows: rows,
+    affectedCount: rows.length,
+    conclusion,
+    hypothesis,
+    action,
+    verification,
+    evidence: rows.slice(0, 4).map(row => ({
+      name: row.current?.shortName || row.current?.name || row.compare?.shortName || row.compare?.name || "未命名商品",
+      productId: row.productId,
+      delta: row.delta
+    }))
+  };
+}
+
+function periodUnifiedIssuesLegacy() {
+  const issues = [];
+  ["product", "ads", "livestream"].forEach(moduleKey => {
+    if (periodStatus(moduleKey) !== "ready") return;
+    const rows = periodCompareRows(moduleKey);
+    if (moduleKey === "product") {
+      const stableTraffic = rows.filter(row => row.status === "matched" && row.delta != null && row.delta < -.1 && (periodDelta(row.current.visitors, row.compare.visitors) ?? -1) >= -.05);
+      if (stableTraffic.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "stable-traffic-conversion-down", "流量基本稳定，但商品成交承接下降", stableTraffic, "netSalesIdr", "用户仍然进入商品页，但销售结果没有跟上流量，优先排查下单承接。", "可能与价格、优惠券、规格库存、运费或结算环节有关；当前文件不能单独确认原因。", "抽查受影响商品的券后价、主推 Model 库存和商品页价格承诺，做单变量修复。", "订单转化率、加购到订单转化率、净订单、净销售额", .24));
+      const trafficDown = rows.filter(row => row.status === "matched" && (periodDelta(row.current.visitors, row.compare.visitors) ?? 0) < -.1);
+      if (trafficDown.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "traffic-down", "商品访客下降，流量入口需要定位", trafficDown, "netSalesIdr", "本次商品流量收缩，是经营结果下滑的重要信号。", "可能与标题点击率、搜索词、活动资源或广告引流变化有关。", "按商品和店铺拆访客下降 Top 20，再结合广告和热搜词数据定位入口。", "访客、曝光、CTR、商品点击、订单转化率", .18));
+      const atcDown = rows.filter(row => row.status === "matched" && row.current.atc > row.current.netOrders * 1.5 && (periodDelta(row.current.netOrders, row.compare.netOrders) ?? 0) < -.1);
+      if (atcDown.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "atc-up-orders-down", "加购增加但订单下降，结算承接存在阻力", atcDown, "netSalesIdr", "购买意向存在，但从加购到下单的转化变弱。", "可能是优惠券门槛、规格库存、价格、运费或结算体验问题。", "先检查加购最高的商品和 Model，核对券后价、库存与结算可用性。", "加购到订单转化率、订单、净销售额、缺货率", .22));
+    } else if (moduleKey === "ads") {
+      const efficiency = rows.filter(row => row.status === "matched" && row.current.spendIdr > row.compare.spendIdr * 1.1 && row.current.roas != null && row.compare.roas != null && row.current.roas < row.compare.roas * .9);
+      if (efficiency.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "spend-up-roas-down", "广告花费增加，但广告效率下降", efficiency, "spendIdr", "扩量没有带来等比例的广告归因销售增长，边际效率正在恶化。", "可能扩展到低相关词，或点击后的商品页承接变弱；没有毛利数据，不能直接称为亏损。", "按花费增量拆商品和关键词，先控制低效增量，再核对素材、词和商品页。", "Ads Spend、广告归因 Gross Sales、ROAS、点击后 CR", .25, "spend"));
+      const ctrDown = rows.filter(row => row.status === "matched" && (periodDelta(row.current.ctr, row.compare.ctr) ?? 0) < -.1);
+      if (ctrDown.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "ctr-down", "广告点击率下降，点击前承诺需要复核", ctrDown, "salesIdr", "曝光转化为点击的效率走弱，问题优先发生在点击前。", "标题、主图、价格展示或关键词相关性可能不足。", "保持预算基本不变，做标题或主图单变量测试，观察 CTR 和点击后 CR。", "Impressions、CTR、Clicks、点击后 CR", .15));
+      const crDown = rows.filter(row => row.status === "matched" && (periodDelta(row.current.cr, row.compare.cr) ?? 0) < -.1);
+      if (crDown.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "post-click-cr-down", "广告点击增加，但点击后转化下降", crDown, "salesIdr", "用户已经点击广告，但商品承接没有转成订单。", "可能与价格、优惠券、库存或主推 Model 不匹配有关。", "对点击增长且 CR 下滑商品核对券、价格、库存和落地页。", "Clicks、Orders、点击后 CR、广告归因销售", .18));
+    } else {
+      const handoff = rows.filter(row => row.status === "matched" && (periodDelta(row.current.atc, row.compare.atc) ?? 0) > .1 && (periodDelta(row.current.orders, row.compare.orders) ?? 0) < -.1);
+      if (handoff.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "atc-up-orders-down", "直播加购增长，但订单没有同步增长", handoff, "netSalesIdr", "直播间存在商品兴趣，但从加购到下单的承接变弱。", "可能与讲解、规格引导、优惠券、价格或库存有关；当前数据没有场次和主播维度。", "回看受影响商品的讲解与优惠，逐个核对主推 Model 可售库存。", "ATC、Orders、加购到订单转化率、直播净销售额", .22));
+      const netGap = rows.filter(row => row.status === "matched" && (periodDelta(row.current.grossSalesIdr, row.compare.grossSalesIdr) ?? 0) > .1 && (periodDelta(row.current.netSalesIdr, row.compare.netSalesIdr) ?? 0) < 0);
+      if (netGap.length) issues.push(periodIssueFromRowsLegacy(moduleKey, "gross-up-net-down", "直播 Gross Sales 增长，但 Net Sales 下滑", netGap, "netSalesIdr", "直播表面成交增长没有转化为净销售，Gross 与 Net 的差额需要核对。", "可能来自退款、取消或平台净额处理，不能直接视为直播增长。", "按商品核对退款、取消明细和售后周期，确认净销售下降原因。", "Gross Sales、Net Sales、退款、取消、订单", .2));
+    }
+  });
+  return issues.sort((a, b) => b.impactAmount - a.impactAmount);
+}
+
+function periodIssuePriority(score, impactShare, severity) {
+  if (severity >= .2 && (impactShare >= .1 || score >= 3)) return "P0";
+  if (severity >= .1 || impactShare >= .04 || score >= 1.5) return "P1";
+  return "P2";
+}
+
+function periodIssueFromRows(moduleKey, key, title, rows, fields, conclusion, hypothesis, action, verification, severity) {
+  const currentTotal = periodTotals(moduleKey, "current");
+  const impactAmount = rows.reduce((sum, row) => {
+    const current = Number(row.current?.[fields.current]) || 0;
+    const compare = Number(row.compare?.[fields.compare || fields.current]) || 0;
+    return sum + Math.max(0, fields.mode === "spend" ? current - compare : compare - current);
+  }, 0);
+  const denominator = Math.max(1, Number(currentTotal.primary) || Number(currentTotal.salesIdr) || Number(currentTotal.netSalesIdr) || 1);
+  const impactShare = impactAmount / denominator;
+  const score = Math.max(.1, impactShare * 10 + severity * Math.log10(impactAmount + 10));
+  return { id: `${moduleKey}-${key}`, moduleKey, source: PERIOD_MODULES[moduleKey].label, priority: periodIssuePriority(score, impactShare, severity), title, key, impactAmount, impactShare, severity, affectedRows: rows, affectedCount: rows.length, conclusion, hypothesis, action, verification, evidence: rows.slice(0, 4).map(row => ({ name: row.current?.shortName || row.current?.name || row.compare?.shortName || row.compare?.name || "未命名商品", productId: row.productId, delta: row.delta })) };
+}
+
+function periodUnifiedIssues() {
+  const issues = [];
+  ["product", "ads", "livestream"].forEach(moduleKey => {
+    if (periodStatus(moduleKey) !== "ready") return;
+    const rows = periodCompareRows(moduleKey);
+    if (moduleKey === "product") {
+      const funnelRows = rows.filter(row => row.status === "matched" && row.delta != null && row.delta < -.1 && (periodDelta(row.current.visitors, row.compare.visitors) ?? -1) >= -.05);
+      if (funnelRows.length) issues.push(periodIssueFromRows(moduleKey, "traffic-stable-conversion-down", "流量基本稳定，但商品成交承接下降", funnelRows, { current: "netSalesIdr" }, "用户仍然进入商品页，但销售结果没有跟上流量，优先排查下单承接。", "可能与价格、优惠券、规格库存、运费或结算环节有关；当前文件不能单独确认原因。", "抽查受影响商品的券后价、主推 Model 库存和商品页价格承诺，做单变量修复。", "订单转化率、加购到订单转化率、净订单、净销售额", .24));
+      const trafficRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.visitors, row.compare.visitors) ?? 0) < -.1);
+      if (trafficRows.length) issues.push(periodIssueFromRows(moduleKey, "traffic-down", "商品访客下降，流量入口需要定位", trafficRows, { current: "netSalesIdr" }, "本次商品流量收缩，是经营结果下滑的重要信号。", "可能与标题点击率、搜索词、活动资源或广告引流变化有关。", "按商品和店铺拆访客下降 Top 20，再结合广告和热搜词数据定位入口。", "访客、曝光、CTR、商品点击、订单转化率", .18));
+      const atcRows = rows.filter(row => row.status === "matched" && row.current.atc > row.current.netOrders * 1.5 && (periodDelta(row.current.netOrders, row.compare.netOrders) ?? 0) < -.1);
+      if (atcRows.length) issues.push(periodIssueFromRows(moduleKey, "atc-up-orders-down", "加购增加但订单下降，结算承接存在阻力", atcRows, { current: "netSalesIdr" }, "购买意向存在，但从加购到下单的转化变弱。", "可能是优惠券门槛、规格库存、价格、运费或结算体验问题。", "先检查加购最高的商品和 Model，核对券后价、库存与结算可用性。", "加购到订单转化率、订单、净销售额、缺货率", .22));
+      const stockRows = rows.filter(row => row.status === "matched" && row.current.coverage != null && row.compare.coverage != null && row.current.coverage < row.compare.coverage * .8 && row.current.netOrders > 0);
+      if (stockRows.length) issues.push(periodIssueFromRows(moduleKey, "coverage-down", "高需求商品库存覆盖下降，存在供给风险", stockRows, { current: "netSalesIdr" }, "销售需求存在，但库存覆盖天数正在收缩。", "若主推 Model 继续销售，库存约束可能在后续周期传导到订单。", "对受影响商品补充库存覆盖预警和 Model 补货计划，不直接停投。", "覆盖天数、缺货率、订单、净销售额", .13));
+    } else if (moduleKey === "ads") {
+      const efficiencyRows = rows.filter(row => row.status === "matched" && row.current.spendIdr > row.compare.spendIdr * 1.1 && row.current.roas != null && row.compare.roas != null && row.current.roas < row.compare.roas * .9);
+      if (efficiencyRows.length) issues.push(periodIssueFromRows(moduleKey, "spend-up-roas-down", "广告花费增加，但广告效率下降", efficiencyRows, { current: "spendIdr", compare: "spendIdr", mode: "spend" }, "扩量没有带来等比例的广告归因销售增长，边际效率正在恶化。", "可能扩展到低相关词，或点击后的商品页承接变弱；没有毛利数据，不能直接称为亏损。", "按花费增量拆商品和关键词，先控制低效增量，再核对素材、词和商品页。", "Ads Spend、广告归因 Gross Sales、ROAS、点击后 CR", .25));
+      const ctrRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.ctr, row.compare.ctr) ?? 0) < -.1);
+      if (ctrRows.length) issues.push(periodIssueFromRows(moduleKey, "ctr-down", "广告点击率下降，点击前承诺需要复核", ctrRows, { current: "salesIdr" }, "曝光转化为点击的效率走弱，问题优先发生在点击前。", "标题、主图、价格展示或关键词相关性可能不足。", "保持预算基本不变，做标题或主图单变量测试，观察 CTR 和点击后 CR。", "Impressions、CTR、Clicks、点击后 CR", .15));
+      const crRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.cr, row.compare.cr) ?? 0) < -.1);
+      if (crRows.length) issues.push(periodIssueFromRows(moduleKey, "post-click-cr-down", "广告点击增加，但点击后转化下降", crRows, { current: "salesIdr" }, "用户已经点击广告，但商品承接没有转成订单。", "可能与价格、优惠券、库存或主推 Model 不匹配有关。", "对点击增长且 CR 下滑商品核对券、价格、库存和落地页。", "Clicks、Orders、点击后 CR、广告归因销售", .18));
+    } else {
+      const handoffRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.atc, row.compare.atc) ?? 0) > .1 && (periodDelta(row.current.orders, row.compare.orders) ?? 0) < -.1);
+      if (handoffRows.length) issues.push(periodIssueFromRows(moduleKey, "atc-up-orders-down", "直播加购增长，但订单没有同步增长", handoffRows, { current: "netSalesIdr" }, "直播间存在商品兴趣，但从加购到下单的承接变弱。", "可能与讲解、规格引导、优惠券、价格或库存有关；当前数据没有场次和主播维度。", "回看受影响商品的讲解与优惠，逐个核对主推 Model 可售库存。", "ATC、Orders、加购到订单转化率、直播净销售额", .22));
+      const netGapRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.grossSalesIdr, row.compare.grossSalesIdr) ?? 0) > .1 && (periodDelta(row.current.netSalesIdr, row.compare.netSalesIdr) ?? 0) < 0);
+      if (netGapRows.length) issues.push(periodIssueFromRows(moduleKey, "gross-up-net-down", "直播 Gross Sales 增长，但 Net Sales 下滑", netGapRows, { current: "netSalesIdr" }, "直播表面成交增长没有转化为净销售，Gross 与 Net 的差额需要核对。", "可能来自退款、取消或平台净额处理，不能直接视为直播增长。", "按商品核对退款、取消明细和售后周期，确认净销售下降原因。", "Gross Sales、Net Sales、退款、取消、订单", .2));
+      const buyerRows = rows.filter(row => row.status === "matched" && (periodDelta(row.current.buyers, row.compare.buyers) ?? 0) > .1 && (periodDelta(row.current.netSalesIdr, row.compare.netSalesIdr) ?? 0) < .05);
+      if (buyerRows.length) issues.push(periodIssueFromRows(moduleKey, "buyers-up-sales-flat", "直播买家增长，但净销售没有同步增长", buyerRows, { current: "netSalesIdr" }, "新增买家没有带来等比例的净销售增长，商品结构或客单贡献偏弱。", "可能是低价商品占比提升，或连带购与高价值商品承接不足。", "拆买家增长商品的订单、件数与净销售，优化直播主推组合。", "Buyers、Orders、Units、Net Sales、客单价", .12));
+    }
+  });
+  return issues.sort((a, b) => (b.impactAmount - a.impactAmount) || (b.severity - a.severity)).map((issue, index) => ({ ...issue, rank: index + 1 }));
+}
+
+function periodHomeMetricCards() {
+  const productReady = periodStatus("product") === "ready";
+  if (!productReady) return "";
+  const current = periodTotals("product", "current");
+  const compare = periodTotals("product", "compare");
+  const cards = [
+    ["净销售额", periodFormatMoney(current.primary), periodChangeText(periodDelta(current.primary, compare.primary)), "商品销售主结果"],
+    ["净订单", periodFormatNumber(current.netOrders), periodChangeText(periodDelta(current.netOrders, compare.netOrders)), "商品销售主结果"],
+    ["商品访客", periodFormatNumber(current.visitors), periodChangeText(periodDelta(current.visitors, compare.visitors)), "商品销售主结果"],
+    ["P0 问题", String(periodUnifiedIssues().filter(issue => issue.priority === "P0").length), "立即处理", "统一问题队列"]
+  ];
+  return cards.map(card => "<article><span>" + escapeHtml(card[0]) + "</span><strong>" + escapeHtml(card[1]) + "</strong><small>" + escapeHtml(card[3]) + " · " + escapeHtml(card[2]) + "</small></article>").join("");
+}
+
+function periodHomeChannelCard(moduleKey, title, fields) {
+  if (periodStatus(moduleKey) !== "ready") return "<article class=\"period-channel-card channel-missing\"><span>" + escapeHtml(title) + "</span><strong>未完成</strong><small>" + escapeHtml(periodStatusText(moduleKey)) + " · 不参与首页问题排序</small></article>";
+  const current = periodTotals(moduleKey, "current");
+  const compare = periodTotals(moduleKey, "compare");
+  const values = fields.map(field => {
+    const value = field[2] === "money" ? periodFormatMoney(current[field[1]]) : field[2] === "ratio" ? (current[field[1]] == null ? "—" : Number(current[field[1]]).toFixed(2)) : periodFormatNumber(current[field[1]]);
+    return "<div><span>" + escapeHtml(field[0]) + "</span><strong>" + value + "</strong><small>" + periodChangeText(periodDelta(current[field[1]], compare[field[1]])) + "</small></div>";
+  }).join("");
+  return "<article class=\"period-channel-card\"><div class=\"period-channel-head\"><span>" + escapeHtml(title) + "</span><small>" + escapeHtml(state.periodAnalysis.modules[moduleKey].current.label) + " vs " + escapeHtml(state.periodAnalysis.modules[moduleKey].compare.label) + "</small></div><div class=\"period-channel-metrics\">" + values + "</div></article>";
+}
+
+function renderPeriodHome() {
+  const ready = ["product", "ads", "livestream"].some(moduleKey => periodStatus(moduleKey) === "ready");
+  $("#periodHomeEmpty").hidden = ready;
+  if (!ready) {
+    $("#periodHomeStatus").innerHTML = "<span>尚未生成分析</span><strong>请先新建分析任务</strong><small>上传两个周期后运行诊断</small>";
+    $("#periodHomeHealth").innerHTML = "";
+    $("#periodOutcomeGrid").innerHTML = "";
+    $("#periodChannelGrid").innerHTML = "";
+    $("#periodIssueGrid").innerHTML = "";
+    $("#periodIssueCount").textContent = "暂无问题";
+    return;
+  }
+  const first = ["product", "ads", "livestream"].find(moduleKey => periodStatus(moduleKey) === "ready");
+  const module = state.periodAnalysis.modules[first];
+  const taskLabel = state.analysisTask?.status === "published" ? "已发布" : "Demo / 草稿";
+  $("#periodHomeStatus").innerHTML = "<span>当前分析任务 · " + taskLabel + "</span><strong>" + escapeHtml(module.current.label) + " vs " + escapeHtml(module.compare.label) + "</strong><small>规则诊断 · Product ID 匹配</small>";
+  $("#periodHomeHealth").innerHTML = ["product", "ads", "livestream"].map(moduleKey => "<span class=\"home-health-" + periodStatus(moduleKey) + "\"><b></b>" + escapeHtml(PERIOD_MODULES[moduleKey].label) + " · " + escapeHtml(periodStatusText(moduleKey)) + "</span>").join("");
+  $("#periodOutcomeGrid").innerHTML = periodHomeMetricCards() || "<div class=\"period-home-note\">商品销售尚未完成，当前只展示独立渠道信号。</div>";
+  $("#periodChannelGrid").innerHTML = periodHomeChannelCard("ads", "产品广告", [["广告花费", "spendIdr", "money"], ["广告归因销售", "salesIdr", "money"], ["ROAS", "roas", "ratio"]]) + periodHomeChannelCard("livestream", "产品直播", [["净销售额", "netSalesIdr", "money"], ["订单", "orders", "number"], ["加购", "atc", "number"]]);
+  const issues = periodUnifiedIssues();
+  const filter = state.periodIssueFilter;
+  const search = state.periodIssueSearch.toLowerCase();
+  const visible = issues.filter(issue => (filter === "全部" || filter === issue.priority || filter === issue.moduleKey) && (!search || (issue.title + issue.source + issue.evidence.map(item => item.name + " " + item.productId).join(" ")).toLowerCase().includes(search)));
+  $("#periodIssueCount").textContent = visible.length + " 个问题 · P0 " + issues.filter(issue => issue.priority === "P0").length + " · P1 " + issues.filter(issue => issue.priority === "P1").length + " · P2 " + issues.filter(issue => issue.priority === "P2").length;
+  $("#periodIssueFilters").innerHTML = [["全部", "全部"], ["P0", "P0"], ["P1", "P1"], ["P2", "P2"], ["商品销售", "product"], ["产品广告", "ads"], ["产品直播", "livestream"]].map(item => "<button type=\"button\" class=\"period-filter-button " + (filter === item[1] ? "active" : "") + "\" data-period-issue-filter=\"" + item[1] + "\">" + item[0] + "</button>").join("");
+  $("#periodIssueGrid").innerHTML = visible.slice(0, 20).map(issue => "<article class=\"period-issue-card priority-" + issue.priority.toLowerCase() + "\"><div class=\"period-issue-card-head\"><span class=\"period-priority\">" + issue.priority + "</span><span class=\"period-issue-source\">" + escapeHtml(issue.source) + "</span><small>#</small></div><h3>" + escapeHtml(issue.title) + "</h3><div class=\"period-issue-impact\"><strong>" + periodFormatMoney(issue.impactAmount) + "</strong><span>估算影响金额 · " + issue.affectedCount + " 个商品</span></div><div class=\"period-issue-evidence\">" + issue.evidence.map(item => "<span>" + escapeHtml(item.name) + " · " + periodChangeText(item.delta) + "</span>").join("") + "</div><p>" + escapeHtml(issue.conclusion) + "</p><div class=\"period-issue-action\"><span>建议动作</span>" + escapeHtml(issue.action) + "</div><button type=\"button\" class=\"period-issue-detail-button\" data-period-issue=\"" + issue.id + "\">查看问题详情 →</button></article>").join("") || "<div class=\"period-home-note\">当前筛选没有问题。</div>";
+  $$("[data-period-issue-filter]").forEach(button => button.addEventListener("click", () => { state.periodIssueFilter = button.dataset.periodIssueFilter; renderPeriodHome(); }));
+  $$("[data-period-issue]").forEach(button => button.addEventListener("click", () => openPeriodIssueDialog(button.dataset.periodIssue)));
+}
+
+function renderHistory() {
+  const history = state.analysisHistory || [];
+  $("#historyStatus").innerHTML = "<div><span>版本规则</span><strong>已发布版本只读 · 修正生成新版本</strong></div><div><span>当前记录</span><strong>" + history.length + " 个分析任务</strong></div>";
+  $("#historyList").innerHTML = history.length ? history.map(item => "<article class=\"history-card\"><div><span>" + escapeHtml(item.status || "草稿") + "</span><h3>" + escapeHtml(item.title) + "</h3><small>" + escapeHtml(item.currentLabel) + " vs " + escapeHtml(item.compareLabel) + "</small></div><strong>" + escapeHtml(item.issueCount + " 个问题") + "</strong><button type=\"button\" data-history-id=\"" + escapeHtml(item.id) + "\">查看版本</button></article>").join("") : "<div class=\"period-home-note\">暂无历史分析。完成一次周期诊断后，系统会在这里保留任务版本。</div>";
+}
+
+function saveAnalysisHistory(status = "draft") {
+  const ready = ["product", "ads", "livestream"].find(moduleKey => periodStatus(moduleKey) === "ready");
+  if (!ready) return;
+  const module = state.periodAnalysis.modules[ready];
+  const item = {
+    id: "analysis-" + Date.now(),
+    title: "周期运营诊断",
+    currentLabel: module.current.label,
+    compareLabel: module.compare.label,
+    issueCount: periodUnifiedIssues().length,
+    status,
+    createdAt: new Date().toISOString(),
+    snapshot: periodSourceSnapshot()
+  };
+  state.analysisHistory = [item, ...(state.analysisHistory || []).filter(history => history.id !== item.id)].slice(0, 30);
+  localStorage.setItem("shopee-ai-analysis-history", JSON.stringify(state.analysisHistory));
+  state.analysisTask = { id: item.id, status, currentLabel: item.currentLabel, compareLabel: item.compareLabel };
+  localStorage.setItem("shopee-ai-analysis-task", JSON.stringify(state.analysisTask));
+  renderHistory();
+  renderPeriodHome();
+}
+
+function openPeriodIssueDialog(issueId) {
+  const issue = periodUnifiedIssues().find(item => item.id === issueId);
+  if (!issue) return;
+  $("#periodIssueDialogTitle").textContent = issue.title;
+  $("#periodIssueDialogTags").innerHTML = "<span>" + issue.priority + "</span><span>" + escapeHtml(issue.source) + "</span><span>" + issue.affectedCount + " 个受影响商品</span><span>影响 " + periodFormatMoney(issue.impactAmount) + "</span>";
+  $("#periodIssueDialogBody").innerHTML = "<div class=\"diagnosis-score-grid\"><article><span>业务影响</span><strong>" + periodFormatMoney(issue.impactAmount) + "</strong><small>本板块周期内估算</small></article><article><span>影响商品</span><strong>" + issue.affectedCount + "</strong><small>Product ID 可下钻</small></article><article><span>结论边界</span><strong>规则证据</strong><small>需结合外部数据验证原因</small></article><article><span>状态</span><strong>未处理</strong><small>可加入动作队列</small></article></div><section><span class=\"detail-label\">事实依据</span><p>" + escapeHtml(issue.evidence.map(item => item.name + "（" + item.productId + "）" + periodChangeText(item.delta)).join("；")) + "</p></section><section><span class=\"detail-label\">诊断结论</span><p>" + escapeHtml(issue.conclusion) + "</p></section><section><span class=\"detail-label\">待验证猜想</span><p>" + escapeHtml(issue.hypothesis) + "</p></section><section class=\"ai-solution\"><span class=\"detail-label\">建议动作</span><p>" + escapeHtml(issue.action) + "</p><p><strong>验证指标：</strong>" + escapeHtml(issue.verification) + "</p><button type=\"button\" class=\"primary-button\" data-add-period-action=\"" + issue.id + "\">加入待处理</button></section><section><span class=\"detail-label\">受影响商品</span><div class=\"period-affected-list\">" + issue.affectedRows.slice(0, 30).map(row => "<div><strong>" + escapeHtml(row.current?.shortName || row.current?.name || row.compare?.shortName || row.compare?.name || "未命名商品") + "</strong><small>" + row.productId + " · " + periodChangeText(row.delta) + "</small></div>").join("") + "</div></section>";
+  $("#periodIssueDialog").showModal();
+  $("#periodIssueDialog [data-add-period-action]")?.addEventListener("click", () => { addPeriodAction(issue); $("#periodIssueDialog").close(); });
+}
+
+function addPeriodAction(issue) {
+  const key = "period-" + issue.id;
+  const actions = JSON.parse(localStorage.getItem("shopee-ai-period-actions") || "[]").filter(item => item.key !== key);
+  actions.push({ key, title: issue.title, source: issue.source, priority: issue.priority, status: "todo", action: issue.action, verification: issue.verification, createdAt: new Date().toISOString() });
+  localStorage.setItem("shopee-ai-period-actions", JSON.stringify(actions));
+  showToast("问题已加入待处理动作");
+  renderTasks();
 }
 
 function exportWeeklyReport() {
@@ -1083,6 +1342,15 @@ function bindEvents() {
   }));
   $("#loadPeriodDemo").addEventListener("click", async () => { const button = $("#loadPeriodDemo"); button.disabled = true; button.textContent = "加载中…"; try { await loadPeriodDemo(); } catch (error) { showToast(error.message); } finally { button.disabled = false; button.textContent = "加载真实数据 Demo"; } });
   $("#clearPeriodAnalysis").addEventListener("click", () => { state.periodAnalysis = null; state.periodImportDraft = { product: {}, ads: {}, livestream: {} }; state.selectedPeriodProductId = null; renderPeriodAnalysis(); showToast("已清除本机周期数据"); });
+  $("#runPeriodDiagnosis").addEventListener("click", () => {
+    if (!["product", "ads", "livestream"].some(moduleKey => periodStatus(moduleKey) === "ready")) return showToast("至少完成一个板块的本次和对比周期上传");
+    saveAnalysisHistory("draft");
+    location.hash = "overview";
+    showToast("诊断已生成，首页已切换到问题队列");
+  });
+  $("#periodIssueSearch").addEventListener("input", event => { state.periodIssueSearch = event.target.value; renderPeriodHome(); });
+  $("#closePeriodIssueDialog").addEventListener("click", () => $("#periodIssueDialog").close());
+  $("#periodIssueDialog").addEventListener("click", event => { if (event.target === $("#periodIssueDialog")) $("#periodIssueDialog").close(); });
   $("#subsidyBudget").addEventListener("input", event => {
     state.subsidyBudget = Math.max(0, Number(event.target.value) || 0);
     localStorage.setItem("shopee-ai-subsidy-budget", String(state.subsidyBudget));
@@ -1177,13 +1445,6 @@ function bindEvents() {
   });
   $("#exportButton").addEventListener("click", exportWeeklyReport);
   const menuButton = $(".menu-button");
-  const workflowNavToggle = $("#workflowNavToggle");
-  const workflowSubmenu = $("#workflowSubmenu");
-  workflowNavToggle.addEventListener("click", () => {
-    const expanded = workflowNavToggle.getAttribute("aria-expanded") === "true";
-    workflowNavToggle.setAttribute("aria-expanded", String(!expanded));
-    workflowSubmenu.hidden = expanded;
-  });
   menuButton.addEventListener("click", () => {
     const open = $(".sidebar").classList.toggle("open");
     menuButton.setAttribute("aria-expanded", String(open));
@@ -1199,18 +1460,14 @@ function setRoute(shouldScroll = false) {
   const targetId = location.hash.replace(/^#/, "") || "overview";
   const route = targetId.startsWith("chat-") || targetId === "workflows" ? "workflows"
     : ["listings", "diagnosis"].includes(targetId) ? "listings"
-    : ["tasks", "sop", "subsidy", "data-governance", "period-analysis", "overview"].includes(targetId) ? targetId
+    : ["actions", "history", "sop", "subsidy", "data-governance", "new-analysis", "overview"].includes(targetId) ? targetId
     : "overview";
   $$('[data-route]').forEach(section => { section.hidden = section.dataset.route !== route; });
-  const workflowRoutes = new Set(["workflows", "listings", "tasks", "sop"]);
+  const workflowRoutes = new Set(["workflows", "listings", "actions", "sop"]);
   $$(".nav-item").forEach(link => {
     const active = link.id === "workflowNavToggle" ? workflowRoutes.has(route) : link.getAttribute("href") === `#${route}`;
     link.classList.toggle("active", active);
   });
-  if (workflowRoutes.has(route)) {
-    $("#workflowNavToggle").setAttribute("aria-expanded", "true");
-    $("#workflowSubmenu").hidden = false;
-  }
   if (shouldScroll) requestAnimationFrame(() => {
     const target = document.getElementById(targetId) || document.querySelector(`[data-route="${route}"]`);
     target?.scrollIntoView({ behavior: "auto", block: "start" });
