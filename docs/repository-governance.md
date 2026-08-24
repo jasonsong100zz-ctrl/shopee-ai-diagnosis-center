@@ -1,101 +1,51 @@
-# 电商子弹库仓库规则
+# 应用仓库治理规则
 
-本仓库同时承载 Shopee 诊断应用和个人电商 Skill 子弹库。应用代码与 Skill 目录可以共存，但发布、测试和数据边界必须分开。
+本仓库只承载 Shopee AI 诊断中心应用。可复用的个人电商 Skill 位于独立仓库 [shopee-ai-skill](https://github.com/jasonsong100zz-ctrl/shopee-ai-skill)，两边的目录、校验、发布和数据边界分开维护。
 
-## 命名规则
+## 仓库边界
 
-### 仓库
+允许在本仓库维护：
 
-当前仓库名 `shopee-ai-diagnosis-center` 保留，用于兼容现有 GitHub Pages 地址。未来若拆出纯 Skill 仓库，建议使用 `ecommerce-skill-bullet-library`，不要把应用仓库和纯 Skill 仓库混为一个产品名。
+- 前端页面、组件、Supabase 客户端和数据库迁移；
+- Shopee 公开链接采集、快照发布和 Chrome 扩展；
+- 主图图像标注、评分、分析和 HTML 报告渲染；
+- GitHub Pages 构建、响应头和应用使用说明。
 
-### Skill
+不在本仓库维护可复用 Skill 的 `SKILL.md`、`agents/openai.yaml`、Skill 目录索引或 Skill 库验证器；这些内容统一提交到 `shopee-ai-skill`。
 
-- 目录名和 frontmatter `name` 使用不超过 64 个字符的 lowercase kebab-case。
-- 目录名表达能力和边界，不使用日期、个人姓名、品牌宣传语或模糊的 `tool`、`helper`、`misc`。
-- `agents/openai.yaml` 使用清晰的中文或英文 `display_name`，并保持与 Skill ID 一一对应。
-- 一个 Skill 只解决一个稳定工作流；需要不同输入、权限、交付物或风险边界时拆成不同 Skill。
+## 数据与权限
 
-### 文件
+- Supabase 业务表必须启用并持续验证 Row Level Security（RLS）。
+- 前端可以使用公开连接密钥，但不得包含 Service Role Key、API Key、Cookie、Token、密码或其他凭据。
+- 只采集用户明确提供的公开商品链接；遇到登录墙、地区限制、风控或缺失字段时如实记录，不绕过访问控制。
+- 公开 Pages 构建只发布应用壳、静态资源和安全响应头，不发布原始业务数据。
+- `tmp/`、`midscene_run/` 和生成的报告、截图、快照用于本地验证，默认不进入 Git。
 
-```text
-skills/<skill-id>/
-├── SKILL.md                 # 触发条件、边界、工作流、交付要求
-├── agents/openai.yaml       # 界面名称和默认调用提示
-├── references/              # 契约、评分方法、领域规则
-├── scripts/                 # 可重复执行的确定性逻辑
-├── assets/                  # 生成结果需要的模板和静态资源
-└── tests/                   # 只在确有自动化测试价值时添加
-```
+## 图像分析证据
 
-## 工作流边界
-
-`shopee-main-image-report` 和 `shopee-new-product-analysis` 必须保持分离：
-
-- 主图监测 Skill 只处理固定竞品链接、主图表达、周期快照和视觉变化。
-- 新品分析 Skill 处理自有产品资料、市场机会、产品定位、主图套图、详情页和上市执行。
-- 新品分析可以复用竞品视觉数据，但主图监测 Skill 不读取新品资料、不输出新品定位或上市计划。
-- 价格/库存监测、评论 VOC、竞品主图和新品上市各自保持独立输入契约。
-
-## 数据和隐私
-
-允许提交：
-
-- 去敏后的 Skill 指令、契约、评分逻辑和测试夹具；
-- 不含客户身份的合成数据；
-- 公开页面 URL 和可复核的公开证据引用；
-- 不包含业务秘密的示例 HTML。
-
-禁止提交：
-
-- API Key、Cookie、Session、Token、Service Account JSON 和密码；
-- 原始评论导出、客户订单、内部销售报表和未脱敏产品资料；
-- 真实业务快照、私有 Google Sheet、私有图片 URL 和登录态数据；
-- 包含个人信息的截图、浏览器缓存或 Chrome profile 文件。
-
-临时采集文件放在 `tmp/`，浏览器运行报告放在 `midscene_run/`，两者默认不进入 Git。
-
-## 证据规则
-
-报告必须区分：
+主图分析报告必须区分：
 
 ```text
-观察到的页面表达
-→ 用户反馈
-→ 自有产品事实
-→ 待验证假设
-→ 执行动作
+页面观察 → 视觉/OCR 识别 → 规则评分 → 待验证假设 → 应用动作
 ```
 
-竞品出现频率不是转化证明；评论频率不是市场普遍性；产品资料事实也不自动等于合规可宣传。医疗、治疗、保证、100%、零刺激和永久等表述必须进入人工审核。
+竞品出现频率只能说明样本中的表达频率，不能证明转化因果或功效；OCR 不确定、图片缺失和模型未覆盖字段必须保留缺失状态。医疗、治疗、保证、100%、零刺激和永久等表述进入人工审核。
 
-## 开发和发布
+## 开发与验证
 
-提交 Skill 变更前至少运行：
+修改应用前先阅读对应模块文档。提交前按影响范围运行：
 
 ```powershell
-node scripts/validate-skills.mjs
-node --check skills/<skill-id>/scripts/<script>.mjs
+npm run validate
+npm run test:image-analysis
+npm run build
 ```
 
-如果 Skill 生成 HTML：
+图像或 HTML 改动还要使用去敏/合成 fixture，在 Chrome 检查桌面与窄屏布局、报告标题、数据来源、空数据状态和证据边界。不要提交生成物。
 
-1. 使用最小合成或去敏 fixture 生成报告；
-2. 检查报告标题、数据来源、空数据状态和证据边界；
-3. 在 Chrome 中打开并检查桌面与窄屏布局；
-4. 不把生成的报告、截图和原始快照提交到仓库。
+## 提交与 PR
 
-提交信息使用简短的英文 Conventional Commits 风格，例如：
-
-```text
-feat(skill): add new product analysis workflow
-fix(skill): preserve missing-data status in periodic report
-docs(repo): clarify skill boundaries
-```
-
-## Pull Request 门槛
-
-- 说明新增或修改的 Skill、触发边界和输入输出；
-- 说明是否涉及公开网页采集或浏览器操作；
-- 通过 Skill 结构校验和最小运行验证；
-- 明确列出未验证字段和需要人工审核的内容；
-- 不包含凭据、私有数据或无关业务改动。
+- 使用简短的英文 Conventional Commits，例如 `feat(app): add snapshot review state`。
+- PR 说明影响的应用模块、数据表/权限、采集范围和验证命令。
+- 明确列出未验证字段、需要人工审核的文案和任何外部依赖。
+- 只提交当前应用改动；需要修改 Skill 时，附上 `shopee-ai-skill` 仓库的对应变更链接。

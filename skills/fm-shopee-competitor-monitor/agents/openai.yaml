@@ -1,8 +1,0 @@
-interface:
-  display_name: "FM Shopee Competitor Monitor"
-  short_description: "Fixed-link Shopee tracking with SKU and cloud sync"
-  brand_color: "#ee4d2d"
-  default_prompt: "Use $fm-shopee-competitor-monitor to configure or run fixed-link Shopee competitor tracking in the user's already logged-in Chrome profile; install or prepare the FM extension first when needed."
-
-policy:
-  allow_implicit_invocation: true
