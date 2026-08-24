@@ -36,6 +36,10 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const setText = (selector, value) => {
+  const target = $(selector);
+  if (target) target.textContent = value;
+};
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
@@ -735,11 +739,11 @@ function refreshDashboard() {
   const period = state.module1.meta?.periodLabel || state.module1.meta?.period || state.data?.periodLabel || state.data?.period || "当前周期";
   const snapshotDates = Object.values(state.snapshots || {}).map(snapshot => snapshot.updated_at).filter(Boolean).sort();
   const lastUpdated = snapshotDates.at(-1) || state.module1.meta?.generatedAt || state.definitions.version;
-  $(".hero-date strong").textContent = `${period} · ${state.module1.summary.shops} 个店铺`;
-  $(".sidebar-note small").textContent = `数据更新 · ${formatSnapshotDate(lastUpdated)}`;
-  $(".hero-signal p").textContent = `成熟链接中 ${formatPercent(declineRate)} 处于单月下滑或连续衰退；当前优先保护 ${summary.t1t2} 条 T1/T2 核心链接。`;
-  $("#currencyNote").textContent = `链接销售数据不重复累计 Model；金额统一人民币，当前汇率 ¥1 = Rp${Number(state.definitions.parameters.idrPerCny).toLocaleString("zh-CN")}。`;
-  $("#diagnosisSourceNote").textContent = `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看AI方案。`;
+  setText(".hero-date strong", `${period} · ${state.module1.summary.shops} 个店铺`);
+  setText(".sidebar-note small", `数据更新 · ${formatSnapshotDate(lastUpdated)}`);
+  setText(".hero-signal p", `成熟链接中 ${formatPercent(declineRate)} 处于单月下滑或连续衰退；当前优先保护 ${summary.t1t2} 条 T1/T2 核心链接。`);
+  setText("#currencyNote", `链接销售数据不重复累计 Model；金额统一人民币，当前汇率 ¥1 = Rp${Number(state.definitions.parameters.idrPerCny).toLocaleString("zh-CN")}。`);
+  setText("#diagnosisSourceNote", `每张卡由${state.module1.summary.links.toLocaleString("zh-CN")}条链接实时计算；点击即可回到对应链接并查看AI方案。`);
   renderMetrics(); renderOverviewLevels(); renderWorkflows(); renderSubsidy(); renderModule1Summary(); renderListingFilters();
   $("#storeFilter").value = state.filters.store; $("#poolFilter").value = state.filters.pool; $("#tierFilter").value = state.filters.tier; $("#matrixFilter").value = state.filters.matrix; $("#matchFilter").value = state.filters.match;
   renderListings(); renderDiagnoses(); renderTasks(); renderSop(); renderGovernance(); renderPeriodAnalysis(); renderPeriodHome(); renderHistory();
