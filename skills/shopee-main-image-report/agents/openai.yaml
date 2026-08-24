@@ -1,0 +1,7 @@
+interface:
+  display_name: "Shopee竞品主图监测"
+  short_description: "周期分析固定竞品主图卖点与视觉趋势"
+  brand_color: "#0E7490"
+  default_prompt: "使用 $shopee-main-image-report，根据固定 Shopee 竞品链接或历史快照生成周期性主图卖点、场景与视觉变化 HTML 报告。"
+policy:
+  allow_implicit_invocation: true

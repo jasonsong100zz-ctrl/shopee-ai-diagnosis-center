@@ -115,27 +115,6 @@ function imageAssets() {
     .map((asset, index) => ({ ...asset, sequence: index + 1 }));
 }
 
-function imageIdFromSource(sourceUrl) {
-  return String(sourceUrl || "").split("/file/")[1]?.split("@")[0] || "";
-}
-
-function orderedImageAssets(visibleAssets, imageIds) {
-  if (!Array.isArray(imageIds) || !imageIds.length) return visibleAssets;
-  const byImageId = new Map(visibleAssets.map((asset) => [imageIdFromSource(asset.source_url), asset]));
-  return unique(imageIds).map((imageId, index) => byImageId.get(imageId) || {
-    sequence: index + 1,
-    source_url: `https://down-id.img.susercontent.com/file/${imageId}`,
-    alt_text: "",
-    natural_width: null,
-    natural_height: null,
-    displayed_width: null,
-    displayed_height: null,
-    displayed_x: null,
-    displayed_y: null,
-    visible: false
-  }).map((asset, index) => ({ ...asset, sequence: index + 1 }));
-}
-
 function numericModelValue(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (value && typeof value === "object") return numericModelValue(value.value ?? value.amount ?? value.price);
@@ -221,7 +200,7 @@ function embeddedModelData(record) {
     const cachedMap = data.initialState?.DOMAIN_PDP?.data?.PDP_BFF_DATA?.cachedMap || {};
     const directItem = cachedMap[`${record.shop_id}/${record.item_id}`]?.item;
     const item = directItem || Object.values(cachedMap).find((entry) => entry?.item?.item_id === Number(record.item_id))?.item;
-    return { models: item?.models || [], tierVariations: item?.tier_variations || [], images: item?.images || [] };
+    return { models: item?.models || [], tierVariations: item?.tier_variations || [] };
   } catch {
     return { models: [], tierVariations: [] };
   }
@@ -265,7 +244,7 @@ async function collect(record) {
   const productSpecifications = valuesBetweenAny(lines, ["Product Specifications"], ["Product Description", "Product Ratings", "Customer Service"]).slice(0, 100);
   const sellerMetricLines = unique(lines.filter((line) => /response rate|response time|followers?|shop rating|products?|joined|chat response|rating/i.test(line))).slice(0, 30);
   const policyLines = unique(lines.filter((line) => /return|refund|guarantee|warranty|payment|cash on delivery|protection/i.test(line))).slice(0, 30);
-  const imageAssetList = orderedImageAssets(imageAssets(), embeddedModels.images);
+  const imageAssetList = imageAssets();
   const imageSources = unique(imageAssetList.map((image) => image.source_url));
   const imageAltTexts = unique(imageAssetList.map((image) => image.alt_text)).slice(0, 100);
   const videoSources = unique([...document.querySelectorAll("video")].map((video) => video.currentSrc || video.src || ""));

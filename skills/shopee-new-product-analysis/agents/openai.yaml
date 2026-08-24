@@ -1,0 +1,7 @@
+interface:
+  display_name: "Shopee新品调研分析"
+  short_description: "生成新品调研、竞品主图与上市规划 HTML 报告"
+  brand_color: "#0E7490"
+  default_prompt: "使用 $shopee-new-product-analysis，根据竞品链接和可选的自有产品资料生成新品调研、主图套图、详情页与上市规划 HTML 报告。"
+policy:
+  allow_implicit_invocation: true

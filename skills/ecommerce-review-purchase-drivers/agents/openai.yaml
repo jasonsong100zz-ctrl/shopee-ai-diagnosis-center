@@ -1,0 +1,4 @@
+interface:
+  display_name: "电商评论购买决策洞察"
+  short_description: "从同品类多品牌评论提取购买决策因子，并生成商品页优化建议"
+  default_prompt: "使用 $ecommerce-review-purchase-drivers 分析这些同品类产品评论，提取购买决策因子、比较产品表现并生成商品页优化建议。"

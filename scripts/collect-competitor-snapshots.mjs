@@ -30,6 +30,27 @@ function unique(values) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
+function imageIdFromSource(sourceUrl) {
+  return String(sourceUrl || "").split("/file/")[1]?.split("@")[0] || "";
+}
+
+function orderedImageAssets(visibleAssets, imageIds) {
+  if (!Array.isArray(imageIds) || !imageIds.length) return visibleAssets;
+  const byImageId = new Map(visibleAssets.map((asset) => [imageIdFromSource(asset.source_url), asset]));
+  return unique(imageIds).map((imageId, index) => byImageId.get(imageId) || {
+    sequence: index + 1,
+    source_url: `https://down-id.img.susercontent.com/file/${imageId}`,
+    alt_text: "",
+    natural_width: null,
+    natural_height: null,
+    displayed_width: null,
+    displayed_height: null,
+    displayed_x: null,
+    displayed_y: null,
+    visible: false
+  }).map((asset, index) => ({ ...asset, sequence: index + 1 }));
+}
+
 function parseCompactNumber(value) {
   if (!value) return null;
   const normalized = value.replace(/\s/g, "").replace(/,/g, ".").toLowerCase();
@@ -63,6 +84,22 @@ function parseMoney(value) {
 
 function extractMoneyTokens(text) {
   return unique(text.match(/(?:Rp|RM|฿|₫|₱|S\$|NT\$|R\$)\s*[\d.,]+/gi) || []);
+}
+
+async function extractEmbeddedImageIds(page) {
+  return page.locator("script").evaluateAll((scripts) => {
+    for (const script of scripts) {
+      const source = script.textContent || "";
+      if (!source.includes("PDP_BFF_DATA") || !source.includes("item_id") || !source.trim().startsWith("{")) continue;
+      try {
+        const data = JSON.parse(source);
+        const cachedMap = data.initialState?.DOMAIN_PDP?.data?.PDP_BFF_DATA?.cachedMap || {};
+        const item = Object.values(cachedMap).find((entry) => Array.isArray(entry?.item?.images))?.item;
+        if (item?.images?.length) return item.images;
+      } catch {}
+    }
+    return [];
+  });
 }
 
 function extractRating(text) {
@@ -196,6 +233,9 @@ async function collectPage(page, record, captureDate) {
     stock_status: null,
     shipping_summary: { lines: [] },
     model_names: [],
+    image_sources: [],
+    image_assets: [],
+    image_alt_texts: [],
     title_hash: null,
     image_hash: null,
     description_hash: null,
@@ -219,7 +259,34 @@ async function collectPage(page, record, captureDate) {
     const titleLocator = page.locator("h1").first();
     const title = await titleLocator.count() ? await titleLocator.innerText().catch(() => "") : "";
     const prices = extractMoneyTokens(bodyText);
-    const imageSources = await page.locator("img[src]").evaluateAll((elements) => elements.map((element) => element.getAttribute("src")).filter(Boolean));
+    const imageAssets = await page.locator("img[src]").evaluateAll((elements) => {
+      const mainImage = elements.find((element) => {
+        const rect = element.getBoundingClientRect();
+        const source = element.currentSrc || element.getAttribute("src") || "";
+        return source.includes("susercontent.com") && rect.width >= 300 && rect.height >= 300;
+      });
+      const gallery = mainImage?.closest("section") || document;
+      return [...gallery.querySelectorAll("img")].map((element, index) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        sequence: index + 1,
+        source_url: element.currentSrc || element.getAttribute("src") || "",
+        alt_text: (element.getAttribute("alt") || "").replace(/\s+/g, " ").trim(),
+        natural_width: element.naturalWidth || null,
+        natural_height: element.naturalHeight || null,
+        displayed_width: Math.round(rect.width) || null,
+        displayed_height: Math.round(rect.height) || null,
+        displayed_x: Math.round(rect.x),
+        displayed_y: Math.round(rect.y),
+        visible: rect.width > 0 && rect.height > 0
+      };
+      }).filter((asset) => asset.source_url.includes("susercontent.com") && asset.natural_width >= 64 && asset.natural_height >= 64 && asset.displayed_width >= 60 && asset.displayed_height >= 60)
+      .filter((asset, index, list) => list.findIndex((candidate) => candidate.source_url === asset.source_url) === index)
+      .slice(0, 40).map((asset, index) => ({ ...asset, sequence: index + 1 }));
+    });
+    const embeddedImageIds = await extractEmbeddedImageIds(page);
+    const orderedAssets = orderedImageAssets(imageAssets, embeddedImageIds);
+    const imageSources = orderedAssets.map((asset) => asset.source_url);
     const modelNames = await page.locator("button").evaluateAll((elements) => elements.map((element) => element.textContent || "").map((value) => value.trim()).filter((value) => value && value.length < 80));
     const promotionLines = extractLines(bodyText, /voucher|flash sale|% off|discount|coins|free shipping|sale/i);
     const shippingLines = extractLines(bodyText, /shipping|delivery|guaranteed to get|free ongkir/i);
@@ -241,6 +308,9 @@ async function collectPage(page, record, captureDate) {
     snapshot.stock_status = parseStockStatus(bodyText);
     snapshot.shipping_summary = { lines: shippingLines.slice(0, 10) };
     snapshot.model_names = unique(modelNames.filter((value) => !/^(increase|decrease|buy now|add to cart|share|report)$/i.test(value))).slice(0, 100);
+    snapshot.image_sources = imageSources;
+    snapshot.image_assets = orderedAssets;
+    snapshot.image_alt_texts = unique(orderedAssets.map((asset) => asset.alt_text).filter(Boolean)).slice(0, 100);
     snapshot.title_hash = hash(snapshot.product_title);
     snapshot.image_hash = hash(unique(imageSources).sort().join("\n"));
     snapshot.description_hash = hash((await page.locator('meta[name="description"]').getAttribute("content").catch(() => "")) || "");

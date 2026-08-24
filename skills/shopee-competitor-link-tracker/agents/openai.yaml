@@ -1,0 +1,4 @@
+interface:
+  display_name: "Shopee Competitor Link Tracker"
+  short_description: "Track fixed Shopee competitor links daily"
+  default_prompt: "Use $shopee-competitor-link-tracker to import a Shopee competitor-link watchlist, validate identifiers, and design or run daily snapshots and change alerts."

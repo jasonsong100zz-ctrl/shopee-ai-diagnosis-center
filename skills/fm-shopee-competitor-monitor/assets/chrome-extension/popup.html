@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>FM 竞品监控</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <h1><img src="icons/icon32.png" alt="FM"> FM 竞品监控</h1>
+  <label>竞品清单链接<input id="sheetUrl" placeholder="可直接粘贴 Google Sheet 编辑链接"></label>
+  <label>保存方式<select id="mode"><option value="offline">离线采集并下载 CSV（推荐）</option><option value="cloud">发布到 Supabase（需要本地桥）</option></select></label>
+  <label>本地发布桥地址<input id="bridgeUrl"></label>
+  <label>工作区 UUID<input id="workspaceId"></label>
+  <label>下载后云端同步<select id="syncMode"><option value="none">不同步（仅保存本地 CSV）</option><option value="webhook">同步到我的接口</option></select></label>
+  <label>个人同步接口地址<input id="syncEndpoint" type="url" placeholder="https://.../upload"></label>
+  <label>接口 Key / Token<input id="syncKey" type="password" placeholder="保存在当前 Chrome 中"></label>
+  <button id="authorizeSync" class="authorize">授权此接口</button>
+  <p id="syncStatus">同步尚未配置</p>
+  <div class="actions"><button id="check">检查桥接</button><button id="start">开始监控</button><button id="resume">验证后继续</button><button id="retry">重试失败</button><button id="stop">停止</button></div>
+  <button id="download" class="download">下载本次结果 CSV</button>
+  <p id="status">加载中…</p><p id="progress"></p><p id="downloadPath" hidden></p><div id="failures" hidden></div>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+name: Validate Skill Library
+
+on:
+  push:
+    paths:
+      - "skills/**"
+      - "scripts/validate-skills.mjs"
+      - ".github/workflows/validate-skills.yml"
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/validate-skills.mjs"
+      - ".github/workflows/validate-skills.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate Skill structure and scripts
+        run: node scripts/validate-skills.mjs

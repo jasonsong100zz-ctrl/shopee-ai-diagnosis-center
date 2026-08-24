@@ -17,7 +17,12 @@ const requiredFiles = [
   "scripts/import-competitor-links.mjs",
   "scripts/collect-competitor-snapshots.mjs",
   "scripts/publish-competitor-snapshots.mjs"
-  ,"scripts/competitor-bridge.mjs"
+  ,"scripts/competitor-bridge.mjs",
+  "scripts/annotate-image-sets.mjs",
+  "scripts/analyze-image-sets.mjs",
+  "scripts/analyze-image-sets.test.mjs",
+  "docs/image-set-analysis.md",
+  "docs/image-annotation.md"
 ];
 
 for (const relativePath of requiredFiles) await access(resolve(root, relativePath));
@@ -29,11 +34,11 @@ const authBootstrap = await readFile(resolve(root, "assets/auth-bootstrap.js"), 
 
 const assertions = [
   [runtime.includes("$(\".listing-table .sort-button\").forEach"), "dashboard-runtime.js still uses forEach on a single-element selector"],
-  [runtime.includes("periodLinks") && runtime.includes("periodLabels"), "period diagnosis logic is missing"],
-  [appSource.includes("importShopeeBatch") && appSource.includes("normalizeProductPerformance") && appSource.includes("normalizeSupportingReport") && appSource.includes("Product_Model ID") && appSource.includes("importedLinkKey") && appSource.includes('report.status !== "blocked"'), "Shopee batch preflight logic is missing"],
-  [appSource.includes("source-task-column") && appSource.includes("sourceStatus") && appSource.includes("Gross Sales(Local currency)"), "source diagnosis integration is missing"],
+  [appSource.includes("periodCompareRows") && appSource.includes("periodDiagnosis") && appSource.includes("periodDelta"), "period diagnosis logic is missing"],
+  [appSource.includes("normalizeProductPerformance") && appSource.includes("normalizeSupportingReport") && appSource.includes("Product_Model ID") && appSource.includes('result.status === "blocked"'), "period source preflight logic is missing"],
+  [appSource.includes("sourceFacts") && appSource.includes("Gross Sales(Local currency)") && appSource.includes("待验证猜想"), "source diagnosis integration is missing"],
   [authBootstrap.includes('"sourceFacts"') && authBootstrap.includes("snapshot.sourceFacts"), "source facts cloud persistence is missing"],
-  [indexHtml.includes("shopeeBatchFileInput") && indexHtml.includes("batchImportStatus"), "Shopee batch import UI is missing"],
+  [indexHtml.includes("period-analysis") && indexHtml.includes("periodProductCurrent") && indexHtml.includes("periodAdsCurrent") && indexHtml.includes("periodLivestreamCurrent"), "period analysis import UI is missing"],
   [indexHtml.includes("assets/auth-bootstrap.js?v="), "index.html must load the versioned auth bootstrap"],
   [authBootstrap.includes("./assets/app.js?v="), "auth bootstrap must load the canonical app runtime"],
   [authBootstrap.includes("validateSnapshotRecords(records)"), "cloud snapshots must be validated before rendering"],

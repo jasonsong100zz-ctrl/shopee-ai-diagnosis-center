@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-18T16:20:13Z",
+  "title": "Design System: VOC Decision Lab",
+  "extensions": {
+    "typographyMeta": {
+      "display": {
+        "displayName": "Evidence Conclusion",
+        "purpose": "The single report-level conclusion in the hero."
+      },
+      "headline": {
+        "displayName": "Workbench Section",
+        "purpose": "Primary headings for report sections."
+      },
+      "title": {
+        "displayName": "Operational Title",
+        "purpose": "Opportunity, status, and compact panel titles."
+      },
+      "body": {
+        "displayName": "Evidence Reading",
+        "purpose": "Default narrative and original-language review reading."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Filters, chips, counts, metadata, and table labels."
+      },
+      "chip-label": {
+        "displayName": "Active Chip Label",
+        "purpose": "Selected and removable analytical filters."
+      },
+      "navigation": {
+        "displayName": "Rail Navigation",
+        "purpose": "Desktop rail and sticky mobile section links."
+      },
+      "control": {
+        "displayName": "Neutral Control",
+        "purpose": "Default report actions such as reset, expand, and export."
+      },
+      "control-selected": {
+        "displayName": "Selected Control",
+        "purpose": "Pressed theme choices and text actions that require stronger emphasis."
+      },
+      "metric": {
+        "displayName": "Sample Metric",
+        "purpose": "Tabular numeric totals in the five-cell sample strip."
+      },
+      "micro": {
+        "displayName": "Evidence Metadata",
+        "purpose": "Dates, languages, table headings, and provenance details."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-panel-light",
+        "value": "0 12px 32px rgba(37,48,72,.08)",
+        "purpose": "Low ambient separation for the desktop hero."
+      },
+      {
+        "name": "ambient-panel-dark",
+        "value": "0 16px 38px rgba(0,0,0,.24)",
+        "purpose": "Dark-theme counterpart to the ambient panel shadow."
+      },
+      {
+        "name": "sticky-workbench",
+        "value": "0 8px 24px rgba(37,48,72,.06)",
+        "purpose": "Separates the sticky filter workbench while scrolling."
+      },
+      {
+        "name": "control-lift",
+        "value": "0 4px 12px rgba(30,43,70,.07)",
+        "purpose": "Marks the selected word-mode control."
+      }
+    ],
+    "motion": [
+      {
+        "name": "opportunity-disclosure",
+        "value": "transform .18s ease",
+        "purpose": "Rotates only the disclosure caret when an opportunity opens."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "rail-collapse",
+        "value": "1100px"
+      },
+      {
+        "name": "single-column",
+        "value": "760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Rail Navigation Item",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "A quiet 44px report anchor that becomes horizontally scrollable below the rail breakpoint.",
+      "html": "<nav class='ds-rail-nav'><a class='ds-rail-link' href='#decision-map'>决策地图</a></nav>",
+      "css": ".ds-rail-nav{display:grid;gap:4px}.ds-rail-link{display:flex;min-height:44px;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;color:var(--muted,#59657a);text-decoration:none;font-size:13px;font-weight:580}.ds-rail-link:hover{color:var(--ink,#172033);background:var(--subtle,#f3f6fa)}.ds-rail-link:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    },
+    {
+      "name": "Theme Choice",
+      "kind": "button",
+      "refersTo": "theme-choice-active",
+      "description": "The compact light/dark segmented control with a low-saturation selected state.",
+      "html": "<div class='ds-theme-switcher' role='group' aria-label='页面主题'><button class='ds-theme-choice' type='button' aria-pressed='true'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' aria-hidden='true'><circle cx='12' cy='12' r='4'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2'/></svg>日</button><button class='ds-theme-choice' type='button' aria-pressed='false'>夜</button></div>",
+      "css": ".ds-theme-switcher{display:flex;gap:3px;padding:3px;border:1px solid var(--line,#dce3ed);border-radius:11px;background:var(--surface,#fbfcfe)}.ds-theme-choice{display:inline-flex;min-width:42px;min-height:36px;align-items:center;justify-content:center;gap:6px;padding:7px 9px;border:0;border-radius:8px;color:var(--muted,#59657a);background:transparent;font:14px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC','Noto Sans Thai','Noto Sans',sans-serif}.ds-theme-choice[aria-pressed=true]{color:var(--accent2,#2f50b2);background:var(--accent-soft,#e8edfc);font-weight:680}.ds-theme-choice svg{width:16px}.ds-theme-choice:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    },
+    {
+      "name": "Neutral Button",
+      "kind": "button",
+      "refersTo": "button-neutral",
+      "description": "The report's default secondary action for resetting, expanding, and exporting.",
+      "html": "<button class='ds-btn' type='button'>重置全部筛选</button>",
+      "css": ".ds-btn{display:inline-flex;min-height:42px;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border:1px solid var(--line,#dce3ed);border-radius:9px;color:var(--muted,#59657a);background:var(--raised,#fff);font:620 14px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC','Noto Sans Thai','Noto Sans',sans-serif}.ds-btn:hover{color:var(--ink,#172033);border-color:var(--line2,#cbd5e2)}.ds-btn:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "The always-visible search entry for products, factors, original text, and translation.",
+      "html": "<label class='ds-field'><span class='ds-field-label'>搜索</span><input class='ds-input' type='search' placeholder='搜索产品、因子、原文或中文翻译'></label>",
+      "css": ".ds-field{display:block;min-width:0}.ds-field-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.ds-input{width:100%;min-height:42px;padding:9px 11px;border:1px solid var(--line,#dce3ed);border-radius:9px;color:var(--ink,#172033);background:var(--raised,#fff);font:14px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC','Noto Sans Thai','Noto Sans',sans-serif}.ds-input::placeholder{color:var(--soft,#748096)}.ds-input:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    },
+    {
+      "name": "Removable Filter Chip",
+      "kind": "chip",
+      "refersTo": "filter-chip",
+      "description": "An individually removable statement of the active analytical scope.",
+      "html": "<button class='ds-filter-chip' type='button' aria-label='取消因子 · 质地与触感'><span>因子 · 质地与触感</span><span class='ds-filter-chip-x' aria-hidden='true'>×</span></button>",
+      "css": ".ds-filter-chip{display:inline-flex;min-height:32px;align-items:center;gap:6px;padding:5px 8px 5px 10px;border:0;border-radius:999px;color:var(--accent2,#2f50b2);background:var(--accent-soft,#e8edfc);font:650 11px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC','Noto Sans Thai','Noto Sans',sans-serif}.ds-filter-chip:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}.ds-filter-chip-x{font-size:16px}"
+    },
+    {
+      "name": "Decision Factor Row",
+      "kind": "custom",
+      "refersTo": "factor-row",
+      "description": "A factor button that combines identity, sample coverage, and a low-profile evidence bar.",
+      "html": "<button class='ds-factor' type='button'><span class='ds-factor-name'><strong>质地与触感</strong><span>感官与体验 · 3 个产品</span></span><span class='ds-bar-track'><span class='ds-bar-fill' style='width:72%'></span></span><span class='ds-factor-count'>7 条 · 58%</span></button>",
+      "css": ".ds-factor{display:grid;min-height:48px;width:100%;grid-template-columns:minmax(130px,1fr) minmax(120px,2fr) auto;gap:14px;align-items:center;padding:8px 10px;border:0;border-radius:9px;text-align:left;color:var(--ink,#172033);background:transparent}.ds-factor:hover{background:var(--subtle,#f3f6fa)}.ds-factor:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}.ds-factor-name strong,.ds-factor-name span{display:block}.ds-factor-name strong{font-size:12px}.ds-factor-name span{color:var(--soft,#748096);font-size:10px}.ds-bar-track{display:block;height:8px;overflow:hidden;border-radius:999px;background:var(--line,#dce3ed)}.ds-bar-fill{display:block;height:100%;border-radius:inherit;background:var(--accent,#4267d5)}.ds-factor-count{min-width:70px;color:var(--muted,#59657a);text-align:right;font-size:11px;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Matrix Evidence Cell",
+      "kind": "button",
+      "refersTo": "matrix-cell",
+      "description": "A product-by-factor cell that applies both filters and encodes positive-versus-negative evidence intensity.",
+      "html": "<button class='ds-heat' type='button' style='--ds-heat:.62;--ds-heat-color:var(--positive,#23866f)'>5＋ / 1－</button>",
+      "css": ".ds-heat{min-width:64px;min-height:40px;border:1px solid color-mix(in srgb,var(--ds-heat-color) 30%,var(--line,#dce3ed));border-radius:8px;color:var(--ink,#172033);background:color-mix(in srgb,var(--ds-heat-color) calc(var(--ds-heat)*42%),var(--surface,#fbfcfe));font-size:11px}.ds-heat:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    },
+    {
+      "name": "Original Evidence Card",
+      "kind": "card",
+      "refersTo": "evidence-card",
+      "description": "The authoritative review unit, with original language first and translation as a subordinate sidecar.",
+      "html": "<article class='ds-evidence'><div class='ds-evidence-top'><strong>Cedar · Hydra Gel</strong><span class='ds-evidence-meta'>4 星 · 2026-08-12<br>zh · 已验证购买</span></div><p class='ds-review-quote'>“价格偏贵，不过质地清爽、吸收快。”</p><p class='ds-translation'><strong>中文旁注：</strong>翻译仅供理解。</p><div class='ds-atom-row'><span>“不过质地清爽、吸收快”</span><span class='ds-chip-positive'>正向</span></div></article>",
+      "css": ".ds-evidence{display:grid;gap:0;padding:18px;border:1px solid var(--line,#dce3ed);border-radius:12px;color:var(--ink,#172033);background:var(--raised,#fff);font:14px/1.55 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC','Noto Sans Thai','Noto Sans',sans-serif}.ds-evidence-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.ds-evidence-meta{color:var(--soft,#748096);text-align:right;white-space:nowrap;font-size:10px}.ds-review-quote{margin:17px 0 0;font-size:14px;line-height:1.72}.ds-translation{margin:9px 0 0;padding:10px 12px;border-radius:9px;color:var(--muted,#59657a);background:var(--subtle,#f3f6fa);font-size:12px}.ds-translation strong{color:var(--ink,#172033)}.ds-atom-row{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:12px;align-items:center;margin-top:13px;padding:9px 0;border-top:1px solid var(--line,#dce3ed);color:var(--muted,#59657a);font-size:11px}.ds-chip-positive{display:inline-flex;min-height:26px;align-items:center;padding:4px 9px;border-radius:999px;color:var(--positive,#23866f);background:var(--positive-soft,#e2f3ee);font-weight:620}"
+    },
+    {
+      "name": "Opportunity Disclosure",
+      "kind": "custom",
+      "refersTo": "opportunity-disclosure",
+      "description": "An evidence-backed page opportunity that expands from summary to recommendation and proof requirements.",
+      "html": "<details class='ds-opportunity' open><summary class='ds-opportunity-summary'><span class='ds-opportunity-title'>质地与触感</span><span class='ds-opportunity-caret' aria-hidden='true'>›</span></summary><div class='ds-opportunity-detail'><p><strong>用户能否快速判断质地与吸收感？</strong></p><button class='ds-text-button' type='button'>查看用户原声 →</button></div></details>",
+      "css": ".ds-opportunity{overflow:hidden;border:1px solid var(--line,#dce3ed);border-radius:12px;color:var(--ink,#172033);background:var(--raised,#fff)}.ds-opportunity-summary{display:grid;min-height:66px;grid-template-columns:minmax(180px,1fr) 20px;gap:14px;align-items:center;padding:13px 18px;list-style:none;cursor:pointer}.ds-opportunity-summary::-webkit-details-marker{display:none}.ds-opportunity-summary:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:-3px}.ds-opportunity-title{font-size:15px;font-weight:700}.ds-opportunity-caret{color:var(--soft,#748096);font-size:17px;transition:transform .18s ease}.ds-opportunity[open] .ds-opportunity-caret{transform:rotate(90deg)}.ds-opportunity-detail{padding:18px;border-top:1px solid var(--line,#dce3ed);color:var(--muted,#59657a);font-size:12px}.ds-text-button{min-height:40px;padding:5px 0;border:0;color:var(--accent2,#2f50b2);background:transparent;font-weight:680}.ds-text-button:focus-visible{outline:3px solid color-mix(in srgb,var(--accent,#4267d5) 45%,transparent);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Workbench / 证据工作台",
+    "overview": "The system should feel like a calm operational desk where every summary can be traced back to its source. A cool gray-blue canvas holds paper-white work surfaces; compact typography, thin borders, and restrained low-saturation blue establish hierarchy before decoration. The approved visual lineage is modern Linear + Stripe + Notion operational SaaS, carried forward under seed exemption `incumbent-amazon-voc-user-approved-20260813`.\n\nIts signature is a continuous evidence interaction: a decision-factor matrix narrows the dataset, individually removable filter chips make the active scope visible, and original-language evidence completes the trace. Light and dark modes preserve the same information hierarchy. Product imagery appears only when it is review evidence, never as decorative filler.",
+    "keyCharacteristics": [
+      "Cool gray-blue canvas with paper-white work surfaces.",
+      "Flat-first hierarchy built from type, alignment, density, and thin structural borders.",
+      "One restrained blue interaction voice plus semantic evidence states.",
+      "Compact, multilingual, evidence-first reading with full light/dark parity.",
+      "A traceable matrix → removable filters → original-language evidence chain."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Voice Rule",
+        "body": "Blue is reserved for interaction, selection, and the evidence path; it does not decorate unrelated surfaces.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic State Rule",
+        "body": "Teal, rose, and amber communicate positive, negative, and warning meaning only; never use them as general accents.",
+        "section": "colors"
+      },
+      {
+        "name": "The Offline Legibility Rule",
+        "body": "Preserve the complete native multilingual fallback stack and never add a network font dependency to the generated report.",
+        "section": "typography"
+      },
+      {
+        "name": "The Structural Responsive Rule",
+        "body": "Narrow layouts change hierarchy and grouping; they do not merely scale the desktop composition down.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "Use tonal layering and structural lines first; elevation is reserved for sticky, selected, or top-level surfaces.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Radius Hierarchy Rule",
+        "body": "Larger surfaces receive the larger radius; nested controls step down, while only chips and status dots become fully rounded.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do preserve matrix → removable filters → original-language evidence as one continuous drill-down.",
+      "Do use paper-white work surfaces, thin structural borders, and compact type to establish the primary hierarchy.",
+      "Do maintain semantic labels, visible focus, reduced-motion behavior, 44px mobile targets, and full light/dark parity.",
+      "Do keep review imagery attached to its exact evidence and failure/loading state."
+    ],
+    "donts": [
+      "Don't use sample coverage as a market incidence claim or style draft recommendations as verified product facts.",
+      "Don't turn the report into a field of elevated cards, decorative gradients, or saturated accent blocks.",
+      "Don't hide the active analytical scope; every filter must remain visible and individually removable.",
+      "Don't replace original-language evidence with translation, or add external font/image dependencies for decoration."
+    ]
+  }
+}

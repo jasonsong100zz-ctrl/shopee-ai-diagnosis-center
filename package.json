@@ -10,7 +10,10 @@
     "competitor:collect": "node scripts/collect-competitor-snapshots.mjs",
     "competitor:publish": "node scripts/publish-competitor-snapshots.mjs",
     "competitor:chrome": "powershell -ExecutionPolicy Bypass -File scripts/start-shopee-chrome.ps1",
-    "competitor:bridge": "node scripts/competitor-bridge.mjs"
+    "competitor:bridge": "node scripts/competitor-bridge.mjs",
+    "image-annotate": "node scripts/annotate-image-sets.mjs",
+    "image-analysis": "node scripts/analyze-image-sets.mjs",
+    "test:image-analysis": "node scripts/analyze-image-sets.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"
