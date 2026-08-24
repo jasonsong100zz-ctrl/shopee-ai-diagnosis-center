@@ -2,7 +2,10 @@ const DEFAULTS = {
   sheetUrl: "https://docs.google.com/spreadsheets/d/1sQfu_8VCBhH3WnKp67It3RwiB8vQRLjBzSWY9ndWI8w/export?format=csv&gid=0",
   bridgeUrl: "http://127.0.0.1:8787",
   workspaceId: "d67e57a2-b486-41e3-9321-bdf8b30ae6c6",
-  mode: "offline"
+  mode: "offline",
+  syncMode: "none",
+  syncEndpoint: "",
+  syncKey: ""
 };
 
 function parseCsv(input) {
@@ -106,7 +109,29 @@ function buildReportCsv(state) {
   return `\uFEFF${[REPORT_HEADERS, ...rows.map((row) => REPORT_HEADERS.map((header) => row[header] ?? ""))].map((row) => row.map((value, columnIndex) => csvCell(value, REPORT_HEADERS[columnIndex])).join(",")).join("\r\n")}`;
 }
 function reportFileName(state) { return state.reportFileName || `FM竞品监控-${new Date().toISOString().slice(0, 10)}.csv`; }
-async function getState() { return chrome.storage.local.get({ settings: DEFAULTS, queue: [], index: 0, running: false, paused: false, status: "未开始", results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null }); }
+function syncEndpoint(settings) {
+  const value = String(settings.syncEndpoint || "").trim();
+  if (!value) throw new Error("请填写云端同步接口地址");
+  const endpoint = new URL(value);
+  if (!["https:", "http:"].includes(endpoint.protocol)) throw new Error("同步接口必须使用 HTTP 或 HTTPS 地址");
+  if (endpoint.protocol === "http:" && !["localhost", "127.0.0.1"].includes(endpoint.hostname)) throw new Error("公网同步接口必须使用 HTTPS");
+  return endpoint;
+}
+async function syncReport(state, fileName, csv) {
+  const settings = { ...DEFAULTS, ...(state.settings || {}) };
+  if (settings.syncMode !== "webhook") return { status: "未启用" };
+  const endpoint = syncEndpoint(settings);
+  const payload = { schema_version: 1, event: "competitor_report.completed", run_id: state.reportRunId || crypto.randomUUID(), file_name: fileName, generated_at: new Date().toISOString(), report_rows: state.reportRows || [], failed: state.failed || [], csv };
+  const headers = { "Content-Type": "application/json", "X-FM-Sync-Version": "1" };
+  if (settings.syncKey) headers.Authorization = `Bearer ${settings.syncKey}`;
+  const response = await fetch(endpoint.href, { method: "POST", headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(30000) });
+  const text = await response.text();
+  let body = {};
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { message: text }; }
+  if (!response.ok) throw new Error(body.error || body.message || `HTTP ${response.status}`);
+  return { status: "同步成功", response: body };
+}
+async function getState() { return chrome.storage.local.get({ settings: DEFAULTS, queue: [], index: 0, running: false, paused: false, status: "未开始", results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null, reportRunId: null, syncStatus: "未启用", syncError: null, syncAt: null }); }
 async function updateBadge(state) {
   if (state.paused) {
     await chrome.action.setBadgeText({ text: "!" });
@@ -239,9 +264,17 @@ async function downloadReport() {
   const state = await getState();
   if (state.running || !state.status?.startsWith("监控完成")) throw new Error("任务尚未完成，暂时没有可下载结果");
   const fileName = reportFileName(state);
-  const downloadId = await chrome.downloads.download({ url: `data:text/csv;charset=utf-8,${encodeURIComponent(buildReportCsv(state))}`, filename: fileName, saveAs: true });
-  await setState({ reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, status: `${state.status} · 下载已发起` });
-  return { ok: true, downloadId, fileName };
+  const csv = buildReportCsv(state);
+  const downloadId = await chrome.downloads.download({ url: `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`, filename: fileName, saveAs: true });
+  let syncStatus = state.settings?.syncMode === "webhook" ? "同步中" : "未启用";
+  let syncError = null;
+  if (state.settings?.syncMode === "webhook") {
+    try { ({ status: syncStatus } = await syncReport(state, fileName, csv)); }
+    catch (error) { syncStatus = "同步失败"; syncError = error.message || String(error); }
+  }
+  const syncSuffix = syncStatus === "未启用" ? "" : ` · ${syncStatus}`;
+  await setState({ reportFileName: fileName, downloadPath: `Chrome 下载目录/${fileName}`, syncStatus, syncError, syncAt: new Date().toISOString(), status: `${state.status} · 下载已发起${syncSuffix}` });
+  return { ok: true, downloadId, fileName, syncStatus, syncError };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -255,7 +288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       await chrome.storage.local.set({ settings });
       if (settings.mode === "cloud") await checkBridge(settings);
       const fetched = await fetchQueue(settings);
-      await setState({ queue: fetched.queue, index: 0, results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null, running: true, paused: false, status: `已读取 ${fetched.queue.length} 条链接` });
+      await setState({ queue: fetched.queue, index: 0, results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null, reportRunId: crypto.randomUUID(), syncStatus: "未同步", syncError: null, syncAt: null, running: true, paused: false, status: `已读取 ${fetched.queue.length} 条链接` });
       await collectCurrent();
     })().catch((error) => setState({ running: false, paused: false, status: `失败：${error.message}` }));
     sendResponse({ ok: true });
@@ -280,7 +313,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       const state = await getState();
       if (state.running || !state.failed.length) return;
-      await setState({ queue: state.failed.map((item) => item.record), index: 0, failed: [], reportFileName: null, downloadPath: null, running: true, paused: false, status: `准备重试 ${state.failed.length} 条链接` });
+      await setState({ queue: state.failed.map((item) => item.record), index: 0, failed: [], reportFileName: null, downloadPath: null, reportRunId: crypto.randomUUID(), syncStatus: "未同步", syncError: null, syncAt: null, running: true, paused: false, status: `准备重试 ${state.failed.length} 条链接` });
       await collectCurrent();
     })().catch((error) => setState({ running: false, paused: true, status: `失败：${error.message}` }));
     sendResponse({ ok: true });
