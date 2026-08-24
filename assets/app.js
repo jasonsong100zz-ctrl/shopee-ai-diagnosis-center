@@ -1015,7 +1015,11 @@ function periodEnsureShape(snapshot) {
     modules[moduleKey] = {};
     ["current", "compare"].forEach(period => {
       const value = module[period];
-      if (value?.rows) modules[moduleKey][period] = { status: value.status || "ready", label: value.label || period, rows: value.rows.map(withShortName), errors: value.errors || [] };
+      if (value?.rows) modules[moduleKey][period] = { status: value.status || "ready", label: value.label || period, rows: value.rows.map(row => {
+        const normalized = withShortName({ ...row, productId: periodId(row.productId), shopId: periodId(row.shopId) });
+        if (Array.isArray(normalized.models)) normalized.models = normalized.models.map(model => ({ ...model, modelId: periodId(model.modelId) }));
+        return normalized;
+      }), errors: value.errors || [] };
     });
   });
   return { schemaVersion: snapshot.schemaVersion || "period-analysis-v1", generatedAt: snapshot.generatedAt || new Date().toISOString(), modules };
