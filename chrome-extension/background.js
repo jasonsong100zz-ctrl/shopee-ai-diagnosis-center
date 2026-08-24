@@ -53,14 +53,12 @@ function normalizeRows(input) {
   }).filter((record) => record.enabled);
 }
 
-const REPORT_HEADERS = ["采集日期", "品类", "产品", "竞对品牌", "市场", "商品链接", "店铺ID", "商品ID", "商品标题", "当前价格", "原价", "折扣率", "币种", "最低SKU价格", "最高SKU价格", "SKU名称", "SKU价格明细", "库存状态", "累计已售代理值", "评分", "评论数", "促销摘要", "优惠券", "配送摘要", "采集状态", "失败原因"];
+const REPORT_HEADERS = ["采集日期", "品类", "产品", "竞对品牌", "市场", "商品链接", "店铺ID", "商品ID", "商品标题", "当前价格", "原价", "折扣率", "币种", "最低SKU价格", "最高SKU价格", "SKU ID", "SKU名称", "SKU价格", "SKU原价", "SKU库存", "SKU价格状态", "SKU价格明细", "库存状态", "累计已售代理值", "评分", "评论数", "促销摘要", "优惠券", "配送摘要", "采集状态", "失败原因"];
 
 function linesText(value) { return Array.isArray(value?.lines) ? value.lines.join(" | ") : ""; }
 function percentText(value) { return Number.isFinite(value) ? `${Number((value * 100).toFixed(2))}%` : ""; }
-function reportRow(record, snapshot) {
-  const modelPriceText = (snapshot.model_prices || []).map((model) => `${model.model_name || "未命名"}:${model.price === null || model.price === undefined ? "需选择确认" : model.price}${model.currency ? ` ${model.currency}` : ""}${model.stock === null || model.stock === undefined ? "" : `（库存 ${model.stock}）`}`).join(" | ");
-  const skuDetail = snapshot.model_price_capture_status === "requires_selection" ? `价格未完整提供（当前页只确认当前 SKU）：${modelPriceText}` : modelPriceText;
-  return {
+function reportRowsFor(record, snapshot) {
+  const baseRow = {
     "采集日期": snapshot.capture_date || "",
     "品类": record.category || "",
     "产品": record.product_name || "",
@@ -76,8 +74,6 @@ function reportRow(record, snapshot) {
     "币种": snapshot.currency || "",
     "最低SKU价格": snapshot.price_min ?? "",
     "最高SKU价格": snapshot.price_max ?? "",
-    "SKU名称": (snapshot.model_names || []).join(" | "),
-    "SKU价格明细": skuDetail,
     "库存状态": snapshot.stock_status || snapshot.product_status || "",
     "累计已售代理值": snapshot.sold_total ?? "",
     "评分": snapshot.rating ?? "",
@@ -88,15 +84,26 @@ function reportRow(record, snapshot) {
     "采集状态": snapshot.capture_status || "",
     "失败原因": snapshot.error_message || ""
   };
+  const models = snapshot.model_prices || [];
+  if (!models.length) return [{ ...baseRow, "SKU名称": (snapshot.model_names || []).join(" | "), "SKU价格状态": "未识别 SKU", "SKU价格明细": "" }];
+  return models.map((model) => {
+    const priceStatus = model.price === null || model.price === undefined ? "需选择确认" : "已确认";
+    const priceText = model.price === null || model.price === undefined ? "需选择确认" : `${model.price}${model.currency ? ` ${model.currency}` : ""}`;
+    return { ...baseRow, "SKU ID": model.model_id ?? "", "SKU名称": model.model_name || "未命名", "SKU价格": model.price ?? "", "SKU原价": model.original_price ?? "", "SKU库存": model.stock ?? "", "SKU价格状态": priceStatus, "SKU价格明细": snapshot.model_price_capture_status === "requires_selection" ? `价格未完整提供（当前页只确认当前 SKU）：${priceText}` : priceText };
+  });
 }
 function failedReportRow(item) {
   const record = item.record || {};
   return { "采集日期": new Date().toISOString().slice(0, 10), "品类": record.category || "", "产品": item.product_name || record.product_name || "", "竞对品牌": record.competitor_brand || "", "市场": record.market || "", "商品链接": item.product_url || record.product_url || "", "店铺ID": record.shop_id || "", "商品ID": record.item_id || "", "采集状态": "failed", "失败原因": item.error || "" };
 }
-function csvCell(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+function csvCell(value, header) {
+  const text = String(value ?? "");
+  const safeText = /^(店铺ID|商品ID|SKU ID)$/.test(header) && text ? `'${text}` : text;
+  return `"${safeText.replace(/"/g, '""')}"`;
+}
 function buildReportCsv(state) {
   const rows = [...(state.reportRows || []), ...(state.failed || []).map(failedReportRow)];
-  return `\uFEFF${[REPORT_HEADERS, ...rows.map((row) => REPORT_HEADERS.map((header) => row[header] ?? ""))].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+  return `\uFEFF${[REPORT_HEADERS, ...rows.map((row) => REPORT_HEADERS.map((header) => row[header] ?? ""))].map((row) => row.map((value, columnIndex) => csvCell(value, REPORT_HEADERS[columnIndex])).join(",")).join("\r\n")}`;
 }
 function reportFileName(state) { return state.reportFileName || `FM竞品监控-${new Date().toISOString().slice(0, 10)}.csv`; }
 async function getState() { return chrome.storage.local.get({ settings: DEFAULTS, queue: [], index: 0, running: false, paused: false, status: "未开始", results: [], reportRows: [], failed: [], reportFileName: null, downloadPath: null }); }
@@ -211,7 +218,7 @@ async function collectCurrent() {
         await fetchJson(bridgeUrl(settings, "/publish"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId: settings.workspaceId, record, snapshot: result.snapshot }), signal: AbortSignal.timeout(15000) }, "本地发布桥不可用，请先启动 npm run competitor:bridge");
       }
       const latest = await getState();
-      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: settings.mode === "cloud" }], reportRows: [...(latest.reportRows || []), reportRow(record, result.snapshot)], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}${settings.mode === "offline" ? "（离线保存）" : ""}` });
+      await setState({ results: [...latest.results, { watch_key: record.watch_key, product_name: record.product_name, status: result.snapshot.capture_status, published: settings.mode === "cloud" }], reportRows: [...(latest.reportRows || []), ...reportRowsFor(record, result.snapshot)], index: latest.index + 1, status: `已完成 ${latest.index + 1}/${latest.queue.length}${settings.mode === "offline" ? "（离线保存）" : ""}` });
     } catch (error) {
       const latest = await getState();
       if (!latest.running || latest.paused) return;

@@ -137,6 +137,15 @@ function modelValue(model, keys) {
   return null;
 }
 
+function normalizeModelPrice(value, basePrice) {
+  if (value === null || !Number.isFinite(basePrice?.price) || basePrice.price <= 0) return value;
+  if (value > basePrice.price * 1000) {
+    const scaled = value / 100000;
+    if (scaled > 0 && scaled < 100000000) return scaled;
+  }
+  return value;
+}
+
 function modelName(model) { return model?.name || model?.name_tr || model?.sku || model?.model_name || model?.modelName || null; }
 
 function findNetworkModels(value, record, depth = 0) {
@@ -213,8 +222,8 @@ async function collect(record) {
   const modelPriceSource = capturedNetworkModels.length ? "page_network_response" : embeddedModels.models.length ? "embedded_page_state" : "current_page_only";
   const skuNames = unique([...embeddedModels.models.map((model) => model.name || model.name_tr), ...variationOptions(lines)]).slice(0, 50);
   const modelPrices = sourceModels.map((model) => {
-    const price = modelValue(model, ["priceLocal", "price_local", "price"]);
-    const originalPrice = modelValue(model, ["priceBeforeDiscountLocal", "price_before_discount_local", "price_before_discount", "priceBeforeDiscount"]);
+    const price = normalizeModelPrice(modelValue(model, ["priceLocal", "price_local", "price"]), basePrice);
+    const originalPrice = normalizeModelPrice(modelValue(model, ["priceBeforeDiscountLocal", "price_before_discount_local", "price_before_discount", "priceBeforeDiscount"]), basePrice);
     return { model_id: model.model_id || model.modelid || model.skuId || model.sku_id || null, model_name: modelName(model), stock: model.stock ?? model.stock_num ?? model.stockNum ?? null, price, original_price: originalPrice, currency: basePrice.currency, capture_status: price === null ? "requires_selection" : "complete" };
   });
   const availableModelPrices = modelPrices.filter((model) => model.price !== null);
